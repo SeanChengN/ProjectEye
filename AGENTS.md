@@ -15,3 +15,5 @@
 - Comprehensive acceptance: [Phase 5 progress](docs/PHASE5-VALIDATION.md). Keep actual desktop, synthetic, unit, long-run and deferred OS results distinct; do not mark skipped fixtures as passed.
 
 - User decision (2026-11-16): keep strict resume guards. Repeated Paused notifications invalidate this session's resume eligibility; pause-only degradation is accepted. Do not deduplicate notifications to improve resume rate or claim successful resume from accepted degradation.
+
+- Desktop player evidence and exact-target test CLI: [player compatibility](docs/PLAYER-COMPATIBILITY.md). Missing SMTC registration is configuration-specific; never count zero target sessions as a successful pause test.

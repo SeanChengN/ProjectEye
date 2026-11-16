@@ -12,6 +12,7 @@ internal static class Program
     {
         if (args.Length == 1 && (args[0] == "--live" || args[0] == "--live-pause" || args[0] == "--live-resume")) return LiveAsync(args[0] != "--live", args[0] == "--live-resume").GetAwaiter().GetResult();
         if (args.Length == 1 && args[0] == "--synthetic") return SyntheticTests.Run().GetAwaiter().GetResult();
+        if (args.Length >= 2 && (args[0] == "--player-pause" || args[0] == "--player-cycle")) return PlayerTests.Run(args.Skip(1).ToArray(),args[0] == "--player-cycle").GetAwaiter().GetResult();
         if (args.Length != 0) return 2;
         RunAsync().GetAwaiter().GetResult();
         ResumeTests.Run(Test, Check).GetAwaiter().GetResult();
