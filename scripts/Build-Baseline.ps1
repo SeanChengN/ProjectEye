@@ -50,6 +50,17 @@ try {
     $source = Join-Path $run 'src'
     Copy-Source (Join-Path $repo 'src') $source
     Copy-Source (Join-Path $repo 'modules') (Join-Path $run 'modules')
+    $releaseVersion = (Get-Content -LiteralPath (Join-Path $repo 'packaging/test-release.json') -Raw -Encoding utf8 | ConvertFrom-Json).version
+    if ($releaseVersion -notmatch '^1\.0\.0-beta\.([1-9][0-9]*)$') { throw 'Unsupported local test version.' }
+    $revision = $Matches[1]
+    $metadata.version = $releaseVersion
+    $assemblyInfo = Join-Path $source 'Local/ProjectEye/Properties/AssemblyInfo.cs'
+    $assemblyBytes = [IO.File]::ReadAllBytes($assemblyInfo)
+    $assemblyText = [Text.Encoding]::UTF8.GetString($assemblyBytes)
+    $assemblyText = [regex]::Replace($assemblyText, 'AssemblyFileVersion\("[^"]+"\)', ('AssemblyFileVersion("1.0.0.' + $revision + '")'))
+    $assemblyText = [regex]::Replace($assemblyText, 'AssemblyInformationalVersion\("[^"]+"\)', ('AssemblyInformationalVersion("' + $releaseVersion + '")'))
+    [IO.File]::WriteAllBytes($assemblyInfo,[Text.Encoding]::UTF8.GetBytes($assemblyText))
+
     $kit=(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots').KitsRoot10
     $sdk=Get-ChildItem (Join-Path $kit 'UnionMetadata') -Directory | Where-Object { $_.Name -match '^10\.0\.\d+\.\d+$' -and (Test-Path (Join-Path $_.FullName 'Windows.winmd')) } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
     if(!$sdk){throw 'Windows SDK UnionMetadata required'}

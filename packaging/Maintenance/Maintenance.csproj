@@ -1,0 +1,15 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" />
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><AssemblyName>ProjectEye.Maintenance</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion><LangVersion>7.3</LangVersion>
+    <OutputPath>$(EvidencePath)\bin\</OutputPath><IntermediateOutputPath>$(EvidencePath)\obj\</IntermediateOutputPath>
+    <ApplicationIcon>$(ProductIcon)</ApplicationIcon><PlatformTarget>AnyCPU</PlatformTarget><Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System"/><Reference Include="System.Core"/><Reference Include="System.Web.Extensions"/><Reference Include="Microsoft.CSharp"/>
+    <Reference Include="System.Windows.Forms"/><Reference Include="Microsoft.VisualBasic"/>
+    <Compile Include="Program.cs"/><Compile Include="Engine.cs"/><Compile Include="$(IdentitySource)"/>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

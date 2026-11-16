@@ -31,7 +31,7 @@ internal static class Integration
                 rest.Start();rest.Cancel();rest.Cancel();await Task.Delay(1300);
                 Check(starts==2&&ends==1&&cancels==1&&!rest.IsResting,"cancel stops timer once");
                 var viewModel=(ProjectEye.ViewModels.OptionsViewModel)typeof(ProjectEye.Core.WindowManager).GetMethod("CreateViewModel",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{"OptionsWindow"});
-                Check(viewModel.Model.Version=="1.0.0-beta.2","enhanced prerelease version shown");
+                Check(viewModel.Model.Version==File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"expected-version.txt")).Trim(),"enhanced prerelease version shown");
                 var updateModel=(ProjectEye.ViewModels.UpdateViewModel)typeof(ProjectEye.Core.WindowManager).GetMethod("CreateViewModel",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{"UpdateWindow"});
                 Check(!updateModel.PlayProcess&&updateModel.UpVisibility==Visibility.Collapsed&&updateModel.InstallVisibility==Visibility.Collapsed,"upstream update controls disabled");
                 Check(updateModel.VersionInfo.Contains("1.4.3"),"upstream baseline retained in update notice");

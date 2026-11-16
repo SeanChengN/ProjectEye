@@ -21,3 +21,5 @@
 - Local beta packaging: [Phase 6 guide](docs/PHASE6-TEST-RELEASE.md), `scripts/Build-TestRelease.ps1 -Plan -IsccPath <signed ISCC.exe>` then the same command without `-Plan`. User deferred Codex 24-hour acceptance to actual use and authorized beta.1 before Phase 5 completion; formal Release still needs explicit confirmation. No upstream updater in beta payload; never run it.
 
 - Desktop privacy beta.2: [contract and evidence](docs/DESKTOP-PRIVACY.md). Minimize once only before hiding a started break, default off; preserve media policy. Never bypass the shared async finish path or enumerate user windows from automated tests.
+
+- Safe beta.3 maintenance and upgrade: [contract, rollback and verification](docs/BETA3-MAINTENANCE.md). Version source is packaging/test-release.json. Never run the legacy PowerShell uninstaller or HiBit deep cleanup on the host; test real setup only against an explicit isolated directory.

@@ -1,4 +1,6 @@
-# Phase 6 — 首个本地测试版
+# Phase 6 — 本地测试版
+
+当前交付beta.3，安装/卸载规则以[BETA3-MAINTENANCE.md](BETA3-MAINTENANCE.md)为准。以下beta.1记录保留历史证据，其中PowerShell卸载入口已废弃，不应再使用。
 
 用户于2026-11-16批准先制作1.0.0-beta.1，24小时运行由用户实际使用验证，不在Codex等待。该授权适用于本地测试包，不包含推送、GitHub发布或正式Release。Phase5未验证项仍保留。
 

@@ -18,6 +18,7 @@ $msbuild=@(& $vswhere -latest -products '*' -requires Microsoft.Component.MSBuil
 & $msbuild (Join-Path $source 'AppIntegration.csproj') /t:Build /nologo /v:minimal "/p:AppPath=$app" "/p:EvidencePath=$run" "/p:TargetFrameworkRootPath=$($build.referenceRoot)" /fl "/flp:LogFile=$run/build.log;Encoding=UTF-8"
 if($LASTEXITCODE-ne0){throw 'App integration harness build failed'}
 $data=Join-Path $app 'Data';New-Item -ItemType Directory -Path $data | Out-Null
+[IO.File]::WriteAllText((Join-Path $app 'expected-version.txt'),(Get-Content -LiteralPath (Join-Path $repo 'packaging/test-release.json') -Raw -Encoding utf8 | ConvertFrom-Json).version,[Text.UTF8Encoding]::new($false))
 # A minimal legacy XML intentionally omits Media. Existing startup fills missing sections.
 $xml='<Options><General><WarnTime>1</WarnTime><RestTime>20</RestTime><Startup>false</Startup><Sound>false</Sound><Data>false</Data><LeaveListener>false</LeaveListener></General><Style/><KeyboardShortcuts/><Behavior/><Tomato/></Options>'
 [IO.File]::WriteAllText((Join-Path $data 'config.xml'),$xml,[Text.UTF8Encoding]::new($false))

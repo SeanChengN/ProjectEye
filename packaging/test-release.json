@@ -1,10 +1,24 @@
 {
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "configuration": "Release",
   "channel": "local-test",
   "targetFramework": "v4.5",
   "publicationAllowed": false,
   "signed": false,
-  "excludedFiles": ["ProjectEyeUp.exe", "*.pdb"],
-  "requiredFiles": ["ProjectEye.exe", "ProjectEyeBug.exe", "ProjectEye.MediaControl.dll", "x86/SQLite.Interop.dll", "x64/SQLite.Interop.dll"]
+  "excludedFiles": [
+    "ProjectEyeUp.exe",
+    "*.pdb"
+  ],
+  "requiredFiles": [
+    "ProjectEye.exe",
+    "ProjectEye.Maintenance.exe",
+    "ProjectEyeBug.exe",
+    "ProjectEye.MediaControl.dll",
+    "x86/SQLite.Interop.dll",
+    "x64/SQLite.Interop.dll"
+  ],
+  "legacyManifestHashes": [
+    "B474F2B2AB3FB7AFC357D72B51D03AF8997E62DF3F1951B18099B741C8EB2443",
+    "ACD927C900903EE510E764F444A20463187369D229EA62CE237A82CEE50C2BB4"
+  ]
 }

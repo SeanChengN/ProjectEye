@@ -4,22 +4,25 @@
 #ifndef Candidate
   #error Candidate is required
 #endif
+#ifndef ReleaseVersion
+  #error ReleaseVersion is required
+#endif
 [Setup]
-AppId=ProjectEyeEnhanced-beta2
+AppId=ProjectEyeEnhanced-Test
 AppName=ProjectEye Enhanced
-AppVersion=1.0.0-beta.2
-AppVerName=ProjectEye Enhanced 1.0.0-beta.2
-DefaultDirName={localappdata}\Programs\ProjectEyeEnhanced\1.0.0-beta.2
+AppVersion={#ReleaseVersion}
+AppVerName=ProjectEye Enhanced {#ReleaseVersion}
+DefaultDirName={code:ExistingDirectory}
+UsePreviousAppDir=no
 PrivilegesRequired=lowest
 MinVersion=10.0.17763
 Uninstallable=no
 CreateAppDir=yes
 DisableProgramGroupPage=yes
-DisableReadyPage=no
 CloseApplications=no
 RestartApplications=no
 OutputDir={#Candidate}
-OutputBaseFilename=ProjectEye-Enhanced-1.0.0-beta.2-Setup
+OutputBaseFilename=ProjectEye-Enhanced-{#ReleaseVersion}-Setup
 Compression=lzma2
 SolidCompression=yes
 LicenseFile={#Payload}\LICENSE
@@ -27,22 +30,48 @@ SetupIconFile=..\src\Local\ProjectEye\Resources\sunglasses.ico
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
-Source: "{#Payload}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
-[Icons]
-Name: "{userprograms}\ProjectEye Enhanced beta.2"; Filename: "{app}\ProjectEye.exe"; WorkingDir: "{app}"
-[Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\ProjectEyeEnhanced-beta2"; ValueType: string; ValueName: "DisplayName"; ValueData: "ProjectEye Enhanced 1.0.0-beta.2"
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\ProjectEyeEnhanced-beta2"; ValueType: string; ValueName: "DisplayVersion"; ValueData: "1.0.0-beta.2"
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\ProjectEyeEnhanced-beta2"; ValueType: string; ValueName: "InstallLocation"; ValueData: "{app}"
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\ProjectEyeEnhanced-beta2"; ValueType: string; ValueName: "UninstallString"; ValueData: """{sys}\WindowsPowerShell\v1.0\powershell.exe"" -NoProfile -ExecutionPolicy Bypass -File ""{app}\Remove-TestVersion.ps1"""
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\ProjectEyeEnhanced-beta2"; ValueType: dword; ValueName: "NoModify"; ValueData: "1"
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\ProjectEyeEnhanced-beta2"; ValueType: dword; ValueName: "NoRepair"; ValueData: "1"
+Source: "{#Payload}\*"; DestDir: "{tmp}\ProjectEyePayload"; Flags: dontcopy recursesubdirs createallsubdirs
 [Code]
+function ExistingDirectory(Param: String): String;
+var
+  View, I, Hive: Integer;
+  Key, Location: String;
+  Names: array[0..2] of String;
+  Content: AnsiString;
+begin
+  Result := ExpandConstant('{localappdata}\Programs\ProjectEyeEnhanced\Test');
+  Names[0] := 'ProjectEyeEnhanced-Test';
+  Names[1] := 'ProjectEyeEnhanced-beta2';
+  Names[2] := 'ProjectEyeEnhanced-beta1';
+  for I := 0 to 2 do
+    for View := 0 to 1 do begin
+      if View = 0 then Hive := HKCU64 else Hive := HKCU32;
+      Key := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\' + Names[I];
+      if RegQueryStringValue(Hive, Key, 'InstallLocation', Location) then
+        if LoadStringFromFile(AddBackslash(Location) + 'test-package.json', Content) then
+          if Pos('ProjectEye Enhanced', String(Content)) > 0 then begin
+            Result := Location;
+            exit;
+          end;
+    end;
+end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Code: Integer;
+  Tool, Args, Report: String;
+  Content: AnsiString;
 begin
   Result := '';
-  if RegKeyExists(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\ProjectEyeEnhanced-beta2') then
-    Result := 'This test version is already installed. Exit it and use its recoverable uninstaller first.'
-  else if DirExists(ExpandConstant('{app}')) then
-    Result := 'Choose a new empty folder. Existing applications and settings will not be overwritten.';
+  ExtractTemporaryFiles('{tmp}\ProjectEyePayload\*');
+  Tool := ExpandConstant('{tmp}\ProjectEyePayload\ProjectEye.Maintenance.exe');
+  Report := ExpandConstant('{tmp}\maintenance-result.json');
+  Args := '--install --source "' + ExpandConstant('{tmp}\ProjectEyePayload') +
+    '" --target "' + ExpandConstant('{app}') + '" --quiet --result "' + Report + '"';
+  if not Exec(Tool, Args, ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, Code) then
+    Result := 'Cannot launch application maintenance tool.'
+  else if Code <> 0 then begin
+    Result := 'Installation refused or rolled back. Exit the tray application normally and check selected folder.';
+    if LoadStringFromFile(Report, Content) then Result := Result + #13#10 + String(Content);
+    Log(Result);
+  end;
 end;
