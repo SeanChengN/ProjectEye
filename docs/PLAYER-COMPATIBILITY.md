@@ -37,3 +37,35 @@ Feishin 1.17.0：成功暂停记录1条，1秒后状态Paused；IsSameSessionAsy
 新增测试入口：`MediaControl.Tests.exe --player-pause <exact-app-id>...` 或 `--player-cycle <exact-app-id>...`。没有精确匹配且唯一的注册会话就返回3，不发命令。cycle只在严格资格允许时恢复；符合资格但TryPlay失败仍计错误，不能将失败泛化成接受的降级。日志不输出媒体标题、艺术家或路径。
 
 追加安全检查：artifacts/media-control/20261116-184156-007通过52项回归。Feishin已为Paused时再次运行--player-pause，expectedPlaying=0、successfulRecords=0，仍Paused，两个浏览器unchanged=true。不存在的精确应用标识返回3并明确no command sent，没有向其他会话发送命令。产品模块未修改。
+
+## 设置/版本反馈及PotPlayer成功恢复
+
+用户确认Feishin音乐实际已停止，补充网易云已开启“使用系统媒体快捷键”，PotPlayer关于版本为261021（1.7.23172）。该用户报告版本优先用于兼容性记录；EXE版本字段0仅说明文件资源不能提供有效版本，并不表示程序版本为0。
+
+2026-11-16后续独立PoC和模块交叉枚举均发现PotPlayerMini64.exe为Playing且支持Pause；Feishin、Edge、Chrome为Paused，仍未发现网易云会话。“使用系统媒体快捷键”已开启是用户事实，但本机枚举未证明该选项已开启SMTC注册，不能把快捷键支持等同于SMTC。
+
+仅对PotPlayer原对象执行完整周期：expectedPlaying=1、successfulRecords=1、identityMatches=true、CanAutoResume=true；暂停后Paused，TryPlay成功1次，最终Playing。浏览器和Feishin均unchanged=true。测试exit=0，且日志明确ResumeSucceeded；这是严格规则下真实兼容播放器成功恢复证据，不是接受的仅暂停降级。用户随后确认“potplayer正常”，实际视频暂停与继续均已确认。
+
+证据：artifacts/player-compatibility/20261116-184613-550/module-enumeration.log、independent-enumeration.log、potplayer-cycle.log、potplayer-cycle-exit.txt、result.json。产品模块没有修改。
+
+### 当前汇总
+
+| 播放器 | 版本 | 暂停 | 严格恢复 | 结论 |
+| --- | --- | --- | --- | --- |
+| Feishin | 1.17.0 | API与用户实际确认通过 | 重复Paused通知，禁止恢复 | 接受的仅暂停降级 |
+| PotPlayer | 261021（1.7.23172），用户关于界面提供 | API与用户实际确认通过 | API与用户实际确认通过 | 严格条件下完整周期通过 |
+| 网易云音乐 | 3.0.15.202965 | 开启SMTC后API与用户实际确认通过 | 稳定环境复测API通过，最终Playing | 首轮失败保留；API及用户观察完整周期复测通过 |
+
+## 网易云开启SMTC后的首轮测试
+
+用户明确开启SMTC后，模块枚举发现cloudmusic.exe为Playing、指纹可用；其余会话为Edge/Chrome/Feishin Paused、PotPlayer Stopped。仅选择cloudmusic.exe的原会话发送命令，PauseSucceeded=1，用户随后确认音乐已停止。
+
+该轮后续原对象匹配失败（identityMatches=false），精确对象过滤后的会话列表为空，严格恢复返回0；测试exit=1，保留失败，不将安全拒绝恢复表述为完整周期通过。同次最终检查的四个非目标原对象均未匹配，unchanged=false不能据此断言测试控制了它们。测试过滤器只允许原网易云对象；随后一次只读枚举仍见五个会话，网易云Paused、Chrome Playing；保存的after-cycle-enumeration.log再次枚举时Chrome已为Paused。用户确认测试期间打开过网页视频，说明环境状态发生变化，但尚不能证明这就是所有原对象匹配失败的原因。
+
+证据：artifacts/player-compatibility/20261116-184921-377的module-enumeration.log、netease-cycle.log、netease-cycle-exit.txt、after-cycle-enumeration.log、result.json。已请用户只恢复网易云、保持其他播放器不变后复测；未放宽身份保护，未按进程名替代原对象身份，也未尝试模拟按键。
+
+## 网易云稳定环境复测
+
+用户明确准备“只恢复网易云、其他播放器暂停或停止，期间不切换”后复测。起始cloudmusic.exe为Playing，Edge/Chrome/Feishin为Paused，PotPlayer为Stopped。expectedPlaying=1、successfulRecords=1，identityMatches=true、CanAutoResume=true，暂停后Paused；ResumeSucceeded=1，最终Playing。四个非目标原对象均匹配且unchanged=true，完整周期exit=0。用户明确确认网易云实际先暂停后恢复。
+
+证据：artifacts/player-compatibility/20261116-185227-582/netease-stable-cycle.log及cycle-exit.txt。本次通过说明该版本启用SMTC且会话稳定时可按严格规则恢复；不能反推首轮身份失配的确定原因，也不保证所有会话切换时均可恢复。没有修改产品代码或测试规则。
