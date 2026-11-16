@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Windows.Threading;
+using System.Threading.Tasks;
 
 namespace ProjectEye.Core.Service
 {
@@ -11,6 +12,11 @@ namespace ProjectEye.Core.Service
         private readonly DispatcherTimer timer;
 
         private int timed = 0;
+        private readonly DesktopControlService desktop;
+        private bool minimizeThisCycle;
+        private bool shuttingDown;
+        private bool cancelled;
+        private Task finishTask;
         public bool IsResting { get; private set; }
         public Guid CycleId { get; private set; }
         public event RestEventHandler RestCancelled;
@@ -31,8 +37,10 @@ namespace ProjectEye.Core.Service
         private readonly MainService main;
         public RestService(
             ConfigService config,
-            MainService main)
+            MainService main,
+            DesktopControlService desktop)
         {
+            this.desktop = desktop;
             this.config = config;
             this.main = main;
             //初始化计时器
@@ -46,13 +54,18 @@ namespace ProjectEye.Core.Service
 
         public void Init()
         {
+            main.BeforeLeave = CancelAsync;
+            System.Windows.Application.Current.Exit += (sender, args) => Shutdown();
         }
         /// <summary>
         /// 开始休息
         /// </summary>
         public void Start()
         {
-            if (IsResting) return;
+            if (IsResting || shuttingDown || (finishTask != null && !finishTask.IsCompleted)) return;
+            cancelled = false;
+            finishTask = null;
+            minimizeThisCycle = config.options.Behavior.MinimizeWindowsAfterRest;
             IsResting = true;
             CycleId = Guid.NewGuid();
             timed = config.options.General.RestTime;
@@ -62,21 +75,47 @@ namespace ProjectEye.Core.Service
         /// <summary>
         /// 休息结束
         /// </summary>
-        private void End()
+        private async void End() { await FinishAsync(true); }
+        public void Cancel() { ObserveCancel(); }
+        private async void ObserveCancel() { await CancelAsync(); }
+        public Task CancelAsync()
         {
-            if (!IsResting) return;
+            cancelled = true;
+            return FinishAsync(false);
+        }
+        private Task FinishAsync(bool normal)
+        {
+            if (shuttingDown) return Task.FromResult(0);
+            if (!IsResting) { WindowManager.Hide("TipWindow"); return Task.FromResult(0); }
+            if (finishTask != null) return finishTask;
+            timer.Stop();
+            finishTask = FinishCoreAsync(normal);
+            return finishTask;
+        }
+        private async Task FinishCoreAsync(bool normal)
+        {
+            // Keep masks visible until this one bounded operation has completed.
+            if (minimizeThisCycle)
+            {
+                try { await desktop.MinimizeAsync(); } catch { /* Eye care must still finish. */ }
+            }
+            if (shuttingDown) return;
             IsResting = false;
             WindowManager.Hide("TipWindow");
-            timer.Stop();
             timed = config.options.General.RestTime;
-            main.ReStartWorkTimerWatch();
-            OnResetCompleted();
-
+            if (normal && !cancelled)
+            {
+                main.ReStartWorkTimerWatch();
+                OnResetCompleted();
+            }
+            else RestCancelled?.Invoke(this, 0);
         }
-        public void Cancel()
+        public void Shutdown()
         {
-            if (!IsResting) return;
+            shuttingDown = true;
             timer.Stop();
+            desktop.Shutdown();
+            if (!IsResting) return;
             IsResting = false;
             RestCancelled?.Invoke(this, 0);
         }

@@ -89,7 +89,6 @@ namespace ProjectEye.ViewModels
             else
             {
                 //关闭窗口
-                WindowManager.Hide("TipWindow");
                 //进入离开状态
                 main.OnLeave();
             }
@@ -445,16 +444,22 @@ namespace ProjectEye.ViewModels
                 statistic.Add(StatisticType.ResetTime, config.options.General.RestTime);
             }
         }
-        private void busyCommand_action(object obj)
+        private bool closingBreak;
+        private async void busyCommand_action(object obj)
         {
-            reset.Cancel();
+            if (closingBreak) return;
+            closingBreak = true;
+            try
+            {
+            await reset.CancelAsync();
             main.StopBusyListener();
             main.ReStart();
-            WindowManager.Hide("TipWindow");
             if (config.options.General.Data)
             {
                 statistic.Add(StatisticType.SkipCount, 1);
             }
+            }
+            finally { closingBreak = false; }
         }
         private void timeChanged(object sender, int timed)
         {

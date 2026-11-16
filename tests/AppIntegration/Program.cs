@@ -15,7 +15,7 @@ internal static class Integration
     {
         int result=1;
         var app=new App();
-        app.Dispatcher.BeginInvoke(new Action(async()=>{
+        app.OnServiceInitialized += () => app.Dispatcher.BeginInvoke(new Action(async()=>{
             try
             {
                 var collection=(ServiceCollection)typeof(App).GetField("serviceCollection",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(app);
@@ -31,12 +31,13 @@ internal static class Integration
                 rest.Start();rest.Cancel();rest.Cancel();await Task.Delay(1300);
                 Check(starts==2&&ends==1&&cancels==1&&!rest.IsResting,"cancel stops timer once");
                 var viewModel=(ProjectEye.ViewModels.OptionsViewModel)typeof(ProjectEye.Core.WindowManager).GetMethod("CreateViewModel",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{"OptionsWindow"});
-                Check(viewModel.Model.Version=="1.0.0-beta.1","enhanced prerelease version shown");
+                Check(viewModel.Model.Version=="1.0.0-beta.2","enhanced prerelease version shown");
                 var updateModel=(ProjectEye.ViewModels.UpdateViewModel)typeof(ProjectEye.Core.WindowManager).GetMethod("CreateViewModel",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{"UpdateWindow"});
                 Check(!updateModel.PlayProcess&&updateModel.UpVisibility==Visibility.Collapsed&&updateModel.InstallVisibility==Visibility.Collapsed,"upstream update controls disabled");
                 Check(updateModel.VersionInfo.Contains("1.4.3"),"upstream baseline retained in update notice");
                 Check(Path.GetFullPath(Environment.CurrentDirectory).TrimEnd(Path.DirectorySeparatorChar)==Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar),"application owns relative data directory");
                 var settingsWindow=new ProjectEye.Views.OptionsWindow {DataContext=viewModel};
+                Check(settingsWindow.FindName("DesktopMinimizeToggle")!=null,"desktop setting compiled in behavior tab");
                 // This is an in-process binding test; it does not inject input or inspect desktop UI.
                 var pause=(Project1.UI.Controls.Toggle)settingsWindow.FindName("MediaPauseToggle");
                 var resume=(Project1.UI.Controls.Toggle)settingsWindow.FindName("MediaResumeToggle");
@@ -69,6 +70,20 @@ internal static class Integration
                 bitmap.Render(visual);
                 var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
                 using(var output=File.Create(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"media-settings.png")))encoder.Save(output);
+                foreach(System.Windows.Controls.TabItem item in tabs.Items)
+                    if(item.Header!=null&&(item.Header.ToString()=="行为"||item.Header.ToString()=="Behaviors"))item.IsSelected=true;
+                await Dispatcher.Yield(DispatcherPriority.DataBind);
+                content.Measure(new Size(580,400));content.Arrange(new Rect(0,0,580,400));content.UpdateLayout();
+                var behaviorBitmap=new System.Windows.Media.Imaging.RenderTargetBitmap(580,400,96,96,System.Windows.Media.PixelFormats.Pbgra32);
+                var behaviorVisual=new System.Windows.Media.DrawingVisual();
+                using(var drawing=behaviorVisual.RenderOpen())
+                {
+                    drawing.DrawRectangle(System.Windows.Media.Brushes.White,null,new Rect(0,0,580,400));
+                    drawing.DrawRectangle(new System.Windows.Media.VisualBrush(content),null,new Rect(0,0,580,400));
+                }
+                behaviorBitmap.Render(behaviorVisual);
+                var behaviorEncoder=new System.Windows.Media.Imaging.PngBitmapEncoder();behaviorEncoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(behaviorBitmap));
+                using(var output=File.Create(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"behavior-settings.png")))behaviorEncoder.Save(output);
                 settingsWindow.Close();
                 for(int cycle=0;cycle<20;cycle++)
                 {
@@ -86,6 +101,7 @@ internal static class Integration
                 Check(config.options.Media.AutoPause&&config.options.Media.AutoResume&&config.options.Media.Scope==1&&!config.options.Media.Logging,"configuration reload preserves media values");
                 // Reset test-only media config before normal exit; this harness never sends commands.
                 config.options.Media.AutoPause=false;config.options.Media.AutoResume=false;config.Save();
+                await DesktopTests.Run(collection,Check);
                 result=0;Console.WriteLine("App integration: PASS");
             }
             catch(Exception error){Console.Error.WriteLine(error);result=1;}

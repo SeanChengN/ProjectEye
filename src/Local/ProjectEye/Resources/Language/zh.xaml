@@ -228,4 +228,7 @@
     <sys:String x:Key="Lang_MediaCurrent">当前主要媒体会话</sys:String>
     <sys:String x:Key="Lang_MediaLogging">启用媒体控制日志</sys:String>
     <sys:String x:Key="Lang_MediaPrivacy">仅控制支持 Windows 系统媒体控制的播放器。日志仅存于本机，不保存媒体标题或艺术家，也不上传数据。</sys:String>
+    <sys:String x:Key="Lang_DesktopMinimize">结束休息时最小化其他窗口</sys:String>
+    <sys:String x:Key="Lang_DesktopMinimizeHint">仅对已开始的休息生效，结束、跳过或取消后不恢复窗口；直接跳过提醒不生效。媒体按原设置恢复。部分窗口可能无法最小化。</sys:String>
+    <sys:String x:Key="Lang_DesktopMinimizeFailed">部分窗口未能最小化。</sys:String>
 </ResourceDictionary>

@@ -36,7 +36,7 @@ namespace ProjectEye.Core.Service
         private void Leave(object sender,int time) { rest.Cancel(); }
         private void Exit(object sender,System.Windows.ExitEventArgs args)
         {
-            rest.Cancel();coordinator.Dispose();
+            rest.Shutdown();coordinator.Dispose();
             rest.RestStart-=Start;rest.RestCompleted-=Complete;rest.RestCancelled-=Cancel;main.OnLeaveEvent-=Leave;app.Exit-=Exit;
         }
         private async void Observe(Task operation) { try { await operation; } catch { } }

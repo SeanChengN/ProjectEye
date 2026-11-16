@@ -332,17 +332,24 @@ namespace ProjectEye.Core.Service
         /// <summary>
         /// 进入离开状态
         /// </summary>
-        public void OnLeave()
+        public Func<System.Threading.Tasks.Task> BeforeLeave { get; set; }
+        private bool leaving;
+        public async void OnLeave()
         {
-            Debug.WriteLine("用户离开了");
-            WindowManager.Hide("TipWindow");
-            leave_timer.Stop();
-            //停止所有服务
-            DoStop();
-            //启动back timer监听鼠标状态
-            back_timer.Start();
-            //事件响应
-            OnLeaveEvent?.Invoke(this, 0);
+            if (leaving) return;
+            leaving = true;
+            try
+            {
+                DoStop();
+                if (BeforeLeave != null) await BeforeLeave();
+                Debug.WriteLine("用户离开了");
+                leave_timer.Stop();
+                //隐藏提示窗口可能恢复了主计时器，因此再次停止。
+                DoStop();
+                back_timer.Start();
+                OnLeaveEvent?.Invoke(this, 0);
+            }
+            finally { leaving = false; }
         }
         #endregion
 

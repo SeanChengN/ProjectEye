@@ -3,6 +3,8 @@
 param([Parameter(Mandatory)][string]$BuildDirectory)
 $ErrorActionPreference='Stop'
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$existing = @(Get-Process ProjectEye -ErrorAction SilentlyContinue)
+if ($existing.Count) { throw 'Exit the running ProjectEye instance normally before starting isolated app integration tests.' }
 $run=Join-Path $repo ('artifacts/app-integration/'+(Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 New-Item -ItemType Directory -Path $run | Out-Null
 $build=Get-Content -LiteralPath (Join-Path $BuildDirectory 'result.json') -Raw -Encoding utf8|ConvertFrom-Json

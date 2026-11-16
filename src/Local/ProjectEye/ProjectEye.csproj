@@ -121,6 +121,8 @@
     <Compile Include="Core\Service\NotificationService.cs" />
     <Compile Include="Core\Service\PreAlertService.cs" />
     <Compile Include="Core\Service\RestService.cs" />
+    <Compile Include="Core\DesktopWindowMinimizer.cs" />
+    <Compile Include="Core\Service\DesktopControlService.cs" />
     <Compile Include="Core\Service\RestMediaService.cs" />
     <Compile Include="Core\Models\Options\MediaModel.cs" />
     <Compile Include="Core\Service\ScreenService.cs" />

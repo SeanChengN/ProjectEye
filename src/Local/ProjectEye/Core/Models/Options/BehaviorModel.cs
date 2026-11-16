@@ -29,6 +29,7 @@ namespace ProjectEye.Core.Models.Options
         /// 超时未选择时进入休息状态
         /// </summary>
         public bool IsHandleTimeoutRest { get; set; } = true;
+        public bool MinimizeWindowsAfterRest { get; set; } = false;
 
     }
 }

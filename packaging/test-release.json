@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.2",
   "configuration": "Release",
   "channel": "local-test",
   "targetFramework": "v4.5",

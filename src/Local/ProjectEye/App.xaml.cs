@@ -34,7 +34,8 @@ namespace ProjectEye
             {
                 //仅允许运行一次进程
                 MessageBox.Show("程序已经在运行中了", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
-                App.Current.Shutdown();
+                Shutdown();
+                return;
             }
             else
             {
@@ -59,6 +60,7 @@ namespace ProjectEye
                 //托盘
                 serviceCollection.Add<TrayService>();
                 //休息
+                serviceCollection.Add<DesktopControlService>();
                 serviceCollection.Add<RestService>();
                 serviceCollection.Add<RestMediaService>();
                 //声音

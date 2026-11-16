@@ -39,3 +39,7 @@
 最终候选安装验证见installation-verification.json：38文件、哈希一致，重复安装exit=7，Windows PowerShell5.1卸载exit=0，目录连数据标记进入系统回收站，注册清除。前一次最终安装验证命令在产生安装文件前进程中断；检查无安装文件及注册后执行单次重试成功，未覆盖任何目录。中间候选原样保留，不作为最终交付。
 
 最终ZIP的独立解压副本已从系统TEMP工作目录启动，进程正常响应，Data/config.xml与SQLite库均位于应用目录，WarnTime=20、RestTime=20，AutoPause/AutoResume=false，产品版本1.0.0-beta.1；没有应用异常日志。startup-result.json保留证据。该副本暂时留在托盘供用户查看，安装正式测试目录前从托盘正常退出即可；分发ZIP本身仍不含Data/Log。
+
+## beta.2 增量
+
+2026-11-16新增结束休息显示桌面，方案及本轮证据见[桌面功能说明](DESKTOP-PRIVACY.md)。当前配置和打包脚本版本改为1.0.0-beta.2，beta.1历史包保留；正式发布仍未执行。
