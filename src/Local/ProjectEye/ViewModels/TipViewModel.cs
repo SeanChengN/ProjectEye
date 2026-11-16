@@ -438,6 +438,7 @@ namespace ProjectEye.ViewModels
             main.StopBusyListener();
             CountDownVisibility = System.Windows.Visibility.Visible;
             TakeButtonVisibility = System.Windows.Visibility.Hidden;
+            if (reset.IsResting) return;
             reset.Start();
             if (config.options.General.Data)
             {
@@ -446,6 +447,7 @@ namespace ProjectEye.ViewModels
         }
         private void busyCommand_action(object obj)
         {
+            reset.Cancel();
             main.StopBusyListener();
             main.ReStart();
             WindowManager.Hide("TipWindow");

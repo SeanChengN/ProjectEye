@@ -9,7 +9,7 @@
     <Reference Include="System" /><Reference Include="System.Core" />
     <Reference Include="System.Runtime.WindowsRuntime"><HintPath>$(WinRtBridge)</HintPath><Private>False</Private></Reference>
     <Reference Include="Windows"><HintPath>$(WindowsMetadata)</HintPath><IsWinMDFile>true</IsWinMDFile><Private>False</Private></Reference>
-    <Compile Include="MediaControlService.cs" /><Compile Include="GsmtcMediaSessionBackend.cs" />
+    <Compile Include="MediaControlService.cs" /><Compile Include="ResumeGuard.cs" /><Compile Include="RestMediaCoordinator.cs" /><Compile Include="GsmtcMediaSessionBackend.cs" />
   </ItemGroup>
   <Target Name="ValidateBuildInputs" BeforeTargets="PrepareForBuild"><Error Condition="'$(EvidencePath)' == '' Or !Exists('$(WindowsMetadata)') Or !Exists('$(WinRtBridge)')" Text="Build using scripts/Test-MediaControl.ps1." /></Target>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

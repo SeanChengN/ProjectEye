@@ -11,6 +11,9 @@ namespace ProjectEye.Core.Service
         private readonly DispatcherTimer timer;
 
         private int timed = 0;
+        public bool IsResting { get; private set; }
+        public Guid CycleId { get; private set; }
+        public event RestEventHandler RestCancelled;
 
         /// <summary>
         /// 倒计时更改时发生
@@ -49,6 +52,9 @@ namespace ProjectEye.Core.Service
         /// </summary>
         public void Start()
         {
+            if (IsResting) return;
+            IsResting = true;
+            CycleId = Guid.NewGuid();
             timed = config.options.General.RestTime;
             timer.Start();
             RestStart?.Invoke(this, timed);
@@ -58,12 +64,21 @@ namespace ProjectEye.Core.Service
         /// </summary>
         private void End()
         {
+            if (!IsResting) return;
+            IsResting = false;
             WindowManager.Hide("TipWindow");
             timer.Stop();
             timed = config.options.General.RestTime;
             main.ReStartWorkTimerWatch();
             OnResetCompleted();
 
+        }
+        public void Cancel()
+        {
+            if (!IsResting) return;
+            timer.Stop();
+            IsResting = false;
+            RestCancelled?.Invoke(this, 0);
         }
         private void timer_Tick(object sender, EventArgs e)
         {

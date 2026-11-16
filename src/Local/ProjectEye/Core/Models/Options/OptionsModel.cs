@@ -25,5 +25,6 @@ namespace ProjectEye.Core.Models.Options
         /// 番茄模式
         /// </summary>
         public TomatoModel Tomato { get; set; }
+        public MediaModel Media { get; set; } = new MediaModel();
     }
 }

@@ -47,6 +47,13 @@ namespace ProjectEye.MediaControl
         Task<bool> TryPauseAsync(CancellationToken cancellationToken);
     }
 
+    public interface IResumableMediaSession : IMediaSession
+    {
+        // A watcher must cover both playback and media changes; unknown observations invalidate it.
+        IDisposable Watch(Action<MediaPlaybackStatus> playbackChanged, Action mediaChanged);
+        Task<bool> TryPlayAsync(CancellationToken cancellationToken);
+    }
+
     public interface IMediaSessionBackend
     {
         Task<IReadOnlyList<IMediaSession>> GetSessionsAsync(MediaControlScope scope, CancellationToken cancellationToken);
@@ -64,8 +71,8 @@ namespace ProjectEye.MediaControl
         public string Fingerprint { get; private set; }
         public MediaPlaybackStatus PlaybackStatus { get; private set; }
         public bool PauseSucceeded { get; private set; }
-        // Identity matching alone cannot prove user intent. Phase 3 owns resume eligibility.
-        public bool CanAutoResume { get { return false; } }
+        internal ResumeGuard Guard;
+        public bool CanAutoResume { get { return PauseSucceeded && Guard != null && Guard.Eligible; } }
         internal MediaSessionSnapshot(Guid owner, long epoch, object identity, MediaMetadata metadata, MediaPlaybackStatus status, bool paused)
         {
             Owner = owner; Epoch = epoch; SessionReference = identity;
@@ -144,9 +151,31 @@ namespace ProjectEye.MediaControl
                             if (current.Status != MediaPlaybackStatus.Playing || !current.CanPause) continue;
                             // Mark before issuing: a cancelled/timed-out operation might still execute later.
                             commanded.Add(commandKey);
-                            var success = await Bounded(session.TryPauseAsync, linked.Token).ConfigureAwait(false);
-                            if (!success) { commanded.Remove(commandKey); Log("PauseRejected"); continue; }
-                            paused.Add(new MediaSessionSnapshot(owner, epoch, identity, metadata, state.Status, true));
+                            ResumeGuard guard = null;
+                            var resumable = session as IResumableMediaSession;
+                            if (resumable != null && identity != null && metadata != null && metadata.Fingerprint() != null)
+                            {
+                                try { guard = new ResumeGuard(resumable); }
+                                catch (Exception error) { Log("WatchUnavailable", error); }
+                            }
+                            bool success;
+                            try { success = await Bounded(session.TryPauseAsync, linked.Token).ConfigureAwait(false); }
+                            catch { if (guard != null) guard.Dispose(); throw; }
+                            if (!success) { if (guard != null) guard.Dispose(); commanded.Remove(commandKey); Log("PauseRejected"); continue; }
+                            var snapshot = new MediaSessionSnapshot(owner, epoch, identity, metadata, state.Status, true) { Guard = guard };
+                            paused.Add(snapshot);
+                            if (guard != null)
+                            {
+                                // The callback may lag the returned command. Polling can only confirm our initial pause.
+                                for (int retry = 0; retry < 5 && !guard.Confirmed; retry++)
+                                {
+                                    var observed = await Bounded(session.GetPlaybackStateAsync, linked.Token).ConfigureAwait(false);
+                                    if (observed.Status == MediaPlaybackStatus.Paused) guard.Confirm();
+                                    else if (observed.Status != MediaPlaybackStatus.Playing) guard.Invalidate();
+                                    if (!guard.Confirmed) await Task.Delay(100, linked.Token).ConfigureAwait(false);
+                                }
+                                if (!guard.Confirmed) guard.Invalidate();
+                            }
                             Log("PauseSucceeded");
                         }
                         catch (OperationCanceledException) { Log("Cancelled"); break; }
@@ -185,13 +214,48 @@ namespace ProjectEye.MediaControl
             }
         }
 
+        public async Task<int> ResumePausedMediaAsync(IReadOnlyList<MediaSessionSnapshot> snapshots, bool autoResumeEnabled = false, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            if (!autoResumeEnabled || snapshots == null) return 0;
+            using (var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token))
+            {
+                await gate.WaitAsync(linked.Token).ConfigureAwait(false);
+                int resumed = 0;
+                try
+                {
+                    if (!Ready()) return 0;
+                    var sessions = await Bounded(t => backend.GetSessionsAsync(MediaControlScope.AllSessions, t), linked.Token).ConfigureAwait(false);
+                    foreach (var snapshot in snapshots)
+                    {
+                        if (snapshot == null || snapshot.Owner != owner || snapshot.Epoch != epoch || !snapshot.CanAutoResume || !paused.Contains(snapshot)) continue;
+                        var session = (sessions ?? new IMediaSession[0]).FirstOrDefault(s => s != null && ReferenceEquals(s.Identity, snapshot.SessionReference)) as IResumableMediaSession;
+                        if (session == null) { snapshot.Guard.Invalidate(); continue; }
+                        try
+                        {
+                            var metadata = await Bounded(session.GetMetadataAsync, linked.Token).ConfigureAwait(false);
+                            var state = await Bounded(session.GetPlaybackStateAsync, linked.Token).ConfigureAwait(false);
+                            if (metadata == null || metadata.Fingerprint() != snapshot.Fingerprint || state.Status != MediaPlaybackStatus.Paused) { snapshot.Guard.Invalidate(); continue; }
+                            // Recheck the guard inside the command factory after any thread-pool delay.
+                            var succeeded = await Bounded(t => snapshot.Guard.Consume() ? session.TryPlayAsync(t) : Task.FromResult(false), linked.Token).ConfigureAwait(false);
+                            if (succeeded) { resumed++; Log("ResumeSucceeded"); } else Log("ResumeRejected");
+                        }
+                        catch (OperationCanceledException) { snapshot.Guard.Invalidate(); break; }
+                        catch (TimeoutException error) { snapshot.Guard.Invalidate(); Log("ResumeTimeout", error); break; }
+                        catch (Exception error) { snapshot.Guard.Invalidate(); Log("ResumeFailed", error); }
+                    }
+                    return resumed;
+                }
+                catch (Exception error) { Log("ResumeUnavailable", error); return resumed; }
+                finally { gate.Release(); }
+            }
+        }
         // Phase 3 calls this only after closing a rest batch. Never races an uncompleted API call.
         public async Task<bool> ReleasePausedMediaAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
             using (var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token))
             {
                 await gate.WaitAsync(linked.Token).ConfigureAwait(false);
-                try { if (!Ready()) return false; paused.Clear(); commanded.Clear(); epoch++; return true; }
+                try { if (!Ready()) return false; foreach (var snapshot in paused) if (snapshot.Guard != null) snapshot.Guard.Dispose(); paused.Clear(); commanded.Clear(); epoch++; return true; }
                 finally { gate.Release(); }
             }
         }
@@ -232,7 +296,12 @@ namespace ProjectEye.MediaControl
         private static IReadOnlyList<MediaSessionSnapshot> Empty() { return Copy(new MediaSessionSnapshot[0]); }
         private static IReadOnlyList<MediaSessionSnapshot> Copy(IEnumerable<MediaSessionSnapshot> values)
         { return new ReadOnlyCollection<MediaSessionSnapshot>(values.ToList()); }
-        public void Dispose() { if (Interlocked.Exchange(ref disposed, 1) == 0) { try { lifetime.Cancel(); } catch { } } }
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref disposed, 1) != 0) return;
+            try { lifetime.Cancel(); } catch { }
+            _ = Task.Run(async () => { await gate.WaitAsync().ConfigureAwait(false); try { foreach (var snapshot in paused) if (snapshot.Guard != null) snapshot.Guard.Dispose(); paused.Clear(); commanded.Clear(); } finally { gate.Release(); } });
+        }
         private sealed class ReferenceComparer : IEqualityComparer<object>
         { public new bool Equals(object a, object b) { return ReferenceEquals(a, b); } public int GetHashCode(object value) { return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(value); } }
     }

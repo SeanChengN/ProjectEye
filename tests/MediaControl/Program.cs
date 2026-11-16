@@ -13,6 +13,7 @@ internal static class Program
         if (args.Length == 1 && (args[0] == "--live" || args[0] == "--live-pause")) return LiveAsync(args[0] == "--live-pause").GetAwaiter().GetResult();
         if (args.Length != 0) return 2;
         RunAsync().GetAwaiter().GetResult();
+        ResumeTests.Run(Test, Check).GetAwaiter().GetResult();
         Console.WriteLine("Passed={0}; Failed={1}", passed, failed);
         return failed == 0 ? 0 : 1;
     }

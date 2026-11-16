@@ -22,7 +22,7 @@ namespace ProjectEye.MediaControl
             if (scope != MediaControlScope.AllSessions) throw new ArgumentOutOfRangeException("scope");
             return manager.GetSessions().Select(session => (IMediaSession)new Session(session)).ToArray();
         }
-        private sealed class Session : IMediaSession
+        private sealed class Session : IResumableMediaSession
         {
             private readonly GlobalSystemMediaTransportControlsSession session;
             public Session(GlobalSystemMediaTransportControlsSession session) { this.session = session; }
@@ -37,6 +37,25 @@ namespace ProjectEye.MediaControl
             {
                 var metadata = await session.TryGetMediaPropertiesAsync().AsTask(cancellationToken).ConfigureAwait(false);
                 return new MediaMetadata(session.SourceAppUserModelId, metadata.Title, metadata.Artist, metadata.AlbumTitle);
+            }
+            public Task<bool> TryPlayAsync(CancellationToken cancellationToken) { return session.TryPlayAsync().AsTask(cancellationToken); }
+            public IDisposable Watch(Action<MediaPlaybackStatus> playbackChanged, Action mediaChanged)
+            { return new Subscription(session, playbackChanged, mediaChanged); }
+            private sealed class Subscription : IDisposable
+            {
+                private readonly GlobalSystemMediaTransportControlsSession target;
+                private readonly Action<MediaPlaybackStatus> playback;
+                private readonly Action media;
+                public Subscription(GlobalSystemMediaTransportControlsSession target, Action<MediaPlaybackStatus> playback, Action media)
+                {
+                    this.target=target;this.playback=playback;this.media=media;
+                    target.PlaybackInfoChanged += Playback;
+                    try { target.MediaPropertiesChanged += Media; } catch { target.PlaybackInfoChanged -= Playback; throw; }
+                }
+                private void Playback(GlobalSystemMediaTransportControlsSession sender, PlaybackInfoChangedEventArgs args)
+                { try { playback((MediaPlaybackStatus)(int)sender.GetPlaybackInfo().PlaybackStatus); } catch { media(); } }
+                private void Media(GlobalSystemMediaTransportControlsSession sender, MediaPropertiesChangedEventArgs args) { media(); }
+                public void Dispose() { try { target.PlaybackInfoChanged -= Playback; } finally { target.MediaPropertiesChanged -= Media; } }
             }
             public Task<bool> TryPauseAsync(CancellationToken cancellationToken) { return session.TryPauseAsync().AsTask(cancellationToken); }
         }

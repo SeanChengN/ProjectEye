@@ -448,13 +448,13 @@ Task<IReadOnlyList<MediaSessionSnapshot>>
 
 ### Phase 3：接入护眼休息机制
 
-- [ ] 接入 RestStart。
-- [ ] 接入 RestCompleted。
-- [ ] 实现休息会话管理。
-- [ ] 实现暂停记录。
-- [ ] 实现安全恢复。
-- [ ] 实现取消和退出处理。
-- [ ] 验证原有休息功能不受影响。
+- [x] 接入 RestStart。
+- [x] 接入 RestCompleted。
+- [x] 实现休息会话管理。
+- [x] 实现暂停记录。
+- [x] 实现安全恢复。
+- [x] 实现取消和退出处理。
+- [x] 验证原有休息功能不受影响。
 
 交付：媒体控制与护眼机制集成。
 

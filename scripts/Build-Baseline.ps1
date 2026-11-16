@@ -49,6 +49,12 @@ try {
     $metadata.referenceRoot = $refRoot
     $source = Join-Path $run 'src'
     Copy-Source (Join-Path $repo 'src') $source
+    Copy-Source (Join-Path $repo 'modules') (Join-Path $run 'modules')
+    $kit=(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots').KitsRoot10
+    $sdk=Get-ChildItem (Join-Path $kit 'UnionMetadata') -Directory | Where-Object { $_.Name -match '^10\.0\.\d+\.\d+$' -and (Test-Path (Join-Path $_.FullName 'Windows.winmd')) } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+    if(!$sdk){throw 'Windows SDK UnionMetadata required'}
+    $windowsMetadata=Join-Path $sdk.FullName 'Windows.winmd'
+    $bridge=Join-Path $env:windir 'Microsoft.NET/Framework64/v4.0.30319/System.Runtime.WindowsRuntime.dll'
     $projects = @(Get-ChildItem -LiteralPath $source -Filter '*.csproj' -Recurse)
     if ($projects.Count -ne 4) { throw "Expected four baseline projects, found $($projects.Count)." }
     # These settings apply only to the disposable source copy. Keep weaving enabled.
@@ -75,6 +81,7 @@ try {
     }
     $solution = Join-Path $source 'Local/ProjectEye/ProjectEye.Local.sln'
     $arguments = @($solution, '/restore', '/t:Build', "/p:Configuration=$Configuration", '/p:Platform=Any CPU', '/p:RestorePackagesConfig=true', "/p:TargetFrameworkRootPath=$refRoot", '/p:FodyGenerateXsd=false', '/nologo', '/v:minimal', '/fl', "/flp:LogFile=$run/build.log;Encoding=UTF-8;Verbosity=normal", "/bl:$run/build.binlog")
+    $arguments += @("/p:EvidencePath=$run/media", "/p:WindowsMetadata=$windowsMetadata", "/p:WinRtBridge=$bridge")
     Write-Json (Join-Path $run 'command.json') @{ executable=$msbuild; arguments=$arguments }
     & $msbuild @arguments
     $metadata.exitCode = $LASTEXITCODE
