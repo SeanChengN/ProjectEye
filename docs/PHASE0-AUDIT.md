@@ -4,7 +4,7 @@
 
 ## 结论和阶段状态
 
-源码、许可证、配置和事件链审计已完成；原始构建已实际尝试并保存失败基线，**Phase 0 尚未全部通过**，不能宣称原版能够编译运行。没有进入 Phase 1，也没有修改应用源码、目标框架或既有依赖版本。
+源码、许可证、配置和事件链审计已完成；后续已修正引用程序集根目录并完成 Release、Debug 原始解决方案构建和资源检查。**Phase 0 已通过**。Phase 0 收尾后继续独立 Phase 1 PoC；本阶段没有修改应用源码、目标框架或既有依赖版本。原始失败记录保留如下，新增结果见末尾。
 
 | Phase 0 条目 | 结果 |
 | --- | --- |
@@ -14,10 +14,10 @@
 | 框架和依赖 | 已核实，见下文 |
 | 休息事件 | 已核实定义、调用、订阅和生命周期 |
 | 配置机制 | 已核实 XML 持久化及补默认值机制 |
-| 原始版本构建 | 未通过，两次尝试均被 MSB3644 阻断 |
+| 原始版本构建 | 后续 Release、Debug 已通过；前两次失败记录保留 |
 | 保存基线结果 | 已保存两次日志、退出码和隔离引用程序集 |
 
-下一步最小决策：选择在本机补齐 .NET Framework 4.5 targeting pack，或在后续任务中修正隔离引用程序集的 MSBuild 解析方式；先获得成功的原始构建，再开展 GSMTC PoC。当前证据不足以要求升级到 .NET Framework 4.8。
+原始审计建议（已由末尾后续实施结果更新）：补齐 .NET Framework 4.5 targeting pack 或修正隔离引用程序集的 MSBuild 解析；先获得成功基线，再开展 GSMTC PoC。现已采用第二条路径，无需安装系统组件或升级框架。
 
 ## 仓库与上游基线
 
@@ -105,7 +105,7 @@ ProjectEyeBug 使用 `Costura.Fody 4.1.0`、`Fody 6.1.1`，通过相对路径引
 
 `src/Local/ProjectEye/Core/BusyVerdictHelper.cs:17` 的 IsWatchingVideo 会枚举进程但始终返回 false；MusicApps 只有 `cloudmusic` 与空字符串，没有可用的媒体状态检测。全 src 搜索没有发现此方法的调用点，也没有 GSMTC、MediaPlayPause 或系统媒体会话实现。
 
-`MainService.IsBreakReset` 当前使用全屏判断和 Behavior.BreakProgressList 进程名单决定是否跳过提醒。这是原有免打扰规则，不能替代真实媒体状态或作为恢复身份依据。`AudioHelper`/SoundService 是提醒提示音用途，未发现可复用的系统会话控制接口。
+`MainService.IsBreakReset` 当前使用全屏判断和 Behavior.BreakProgressList 进程名单决定是否跳过提醒。这是原有免打扰规则，不能替代真实媒体状态或作为恢复身份依据。`SoundService` 用于提醒提示音；`AudioHelper.IsWindowsPlayingSound` 通过 Core Audio 检查系统输出峰值，并被 MainService 的离开检测调用。它不能识别播放器、播放状态或会话身份，不能替代 GSMTC。
 
 ## 配置、启动、后台和退出
 
@@ -164,3 +164,32 @@ ProjectEyeBug 使用 `Costura.Fody 4.1.0`、`Fody 6.1.1`，通过相对路径引
 静态审计不等于运行测试：未运行应用、播放器或安装/卸载测试。阶段结束应检查 `git diff --check`、Git 仓库身份及最终状态；原有跟踪源码必须保持与审计基线相同。
 
 执行环境附记：Codex 配置为 Windows sandbox `unelevated`。默认命令启动报 `windows unelevated restricted-token sandbox cannot reopen writable descendants under read-only carveouts directly; refusing to run unsandboxed`；后续命令使用已获工具审查许可的 require_escalated。检查默认 `.codex/.sandbox/sandbox.log` 时该文件不存在；未读取 sandbox-secrets，未修改沙箱配置或 ACL。
+
+## 后续实施：引用路径修复与隔离构建（2026-11-16）
+
+已确认前次第二方案参数错误：指定了 `build/.NETFramework`，MSBuild 会继续追加 `.NETFramework/v4.5`，造成重复目录。官方包自带 targets 也是将 TargetFrameworkRootPath 指向包内 build。只运行 GetReferenceAssemblyPaths 后，四个项目均解析到正确的 net45 目录，随后完整编译通过。
+
+新增 `scripts/Build-Baseline.ps1` 和 `docs/BASELINE-BUILD.md`。脚本固定包版本与哈希，通过 vswhere 发现完整 Framework MSBuild，在每次新建的 src 副本恢复两种 NuGet 依赖；副本 Costura.DisableCleanup=true，禁用 FodyGenerateXsd，仍正常编织。原项目源码、XML/XSD、框架与依赖版本均保持原样。
+
+| 配置 | 证据目录（相对仓库根） | 结果 |
+| --- | --- | --- |
+| Release | artifacts/baseline/20261116-160433-317-Release | exitCode=0，四项目成功，主程序/UI/辅助 EXE/SQLite 原生库与嵌入资源检查通过 |
+| Debug | artifacts/baseline/20261116-160532-819-Debug | exitCode=0，同上 |
+
+两次构建均保留 NU1903 和既有 CS0169 未使用字段警告，没有构建错误。output-manifest.json 保存逐文件 SHA256；embedded-resources.json 证明主程序嵌入 Project1.UI、x86/x64 SQLite.Interop 以及托管依赖。独立 UI DLL 存在于其项目输出，同时被嵌入主程序；保留外置副本便于诊断。
+
+首次脚本运行遇到 PowerShell XML 适配器将空 Costura 节点读为字符串的问题；改用 SelectSingleNode 后解决。失败证据目录 artifacts/baseline/20261116-160415-799-Release 原样保留，没有编译，也未修改原源码。
+
+运行验证使用 artifacts/smoke/20261116-160601-939/app 的 Release 副本。第一次被用户既有实例的 projecteye mutex 阻挡，用户手动关闭原实例后，隔离程序正常启动，创建了全新 Data/config.xml、data.db 和 data.db.version，未发现应用异常日志。用户通过托盘打开了隔离实例设置窗口，已验证设置窗口能展示原有20分钟/20秒配置。
+
+桌面自动化能读取设置树并把提醒间隔调整为1，但截图捕获超时，点击报 coordinate input geometry is unavailable，键盘导航没有可确认变化；未把该值视为已持久化。已交由用户完成设置保存、跳过、完整休息及提示音、统计和正常退出的人工验收，结果待确认。此限制不影响已经完成的编译证据。
+
+### 人工验收结果与重启核对
+
+用户已确认：设置为1分钟并开启统计后保存、第一轮跳过、第二轮完整20秒休息并听到提示音、统计页面显示、从托盘正常退出，以上全部通过。工具直接读取隔离 XML 确认 WarnTime=1、RestTime=20、Data=true、Sound=true、Startup=false。重启同一 Release 后进程正常响应，没有应用 Log 文件；用户随后确认重启后的界面值均保留，并再次从托盘正常退出；工具确认测试进程已退出。配置持久化验收通过。
+
+辅助 PowerShell 反序列化检查未通过：PowerShell 7 无法完整反射旧 WPF 配置类型，Windows PowerShell 的 LoadFrom/GetType 路径又发生程序集解析失败。它们发生在外部诊断进程，不是原应用崩溃；两条路径失败后未继续重试，不能作为配置读取成功证据。运行验收采用原版界面与实际重启结果。
+
+### Phase 0 完成
+
+用户分别确认完整运行清单全部通过，以及重启后的1分钟/20秒/统计/提示音设置保留并正常退出。2026-11-16 完成 Phase 0 验收并更新 PLAN.md 的8项 Phase 0 清单。构建入口、项目规则导航、构建说明、计划与审计报告纳入独立提交；原始 src 与 50519089 保持一致。未发布、未推送，未运行更新器，未修改用户安装目录配置。Windows 11 与媒体兼容性留在 Phase 1，不把它们计作 Phase 0 已验证项目。
