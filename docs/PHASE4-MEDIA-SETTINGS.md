@@ -13,3 +13,5 @@
 测试隔离修复：旧统计库使用相对工作目录，早期业务测试在仓库根生成Data/data.db和Data/data.db.version。已核对精确两文件及创建时间，将整个本任务Data目录移动到.recycle-bin/20261116-170337-777/Data，无永久删除，可恢复；测试脚本改为Push-Location隔离应用目录，finally恢复当前目录，后续根目录不再生成Data。
 
 Phase5继续综合测试，包括真实GSMTC恢复、播放器变化、睡眠唤醒和长期运行。Windows11按用户指示延期；未验证项目保持待办，不提前进入正式发布。
+
+后续离屏布局验证：artifacts/app-integration/20261116-171301-457/app/media-settings.png。WPF完成DataBind后对设置内容在白底渲染，已实际查看中文标签、默认关闭/禁用状态、范围选择及换行说明，均无截断；这是离屏布局检查，不替代实际桌面/DPI验收。

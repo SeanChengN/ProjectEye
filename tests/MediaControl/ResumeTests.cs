@@ -21,6 +21,9 @@ internal static class ResumeTests
         await test("coordinator duplicate start complete",async()=>{var a=new Session();using(var c=new RestMediaCoordinator(new MediaControlService(new Backend(a)))){var id=Guid.NewGuid();await Task.WhenAll(c.BeginAsync(id,new RestMediaOptions(true,true)),c.BeginAsync(id,new RestMediaOptions(true,true)));await Task.WhenAll(c.CompleteAsync(id,true),c.CompleteAsync(id,true));await c.BeginAsync(id,new RestMediaOptions(true,true));check(a.Pauses==1&&a.Plays==1,"duplicate cycle");}});
         await test("coordinator cancelled never resumes",async()=>{var a=new Session();using(var c=new RestMediaCoordinator(new MediaControlService(new Backend(a)))){var id=Guid.NewGuid();await c.BeginAsync(id,new RestMediaOptions(true,true));await c.CompleteAsync(id,false);check(a.Pauses==1&&a.Plays==0,"cancel resumed");}});
         await test("completion waits pending pause",async()=>{var entered=new TaskCompletionSource<bool>();var release=new TaskCompletionSource<bool>();var a=new Session{BeforePause=async()=>{entered.SetResult(true);await release.Task;}};using(var c=new RestMediaCoordinator(new MediaControlService(new Backend(a)))){var id=Guid.NewGuid();var begin=c.BeginAsync(id,new RestMediaOptions(true,true));await entered.Task;var end=c.CompleteAsync(id,true);check(!end.IsCompleted,"did not wait");release.SetResult(true);await Task.WhenAll(begin,end);check(a.Pauses==1&&a.Plays==1,"pause omitted");}});
+        await test("resume exception isolated",async()=>{var a=new Session{ThrowPlay=true};using(var service=new MediaControlService(new Backend(a))){var records=await service.PausePlayingMediaAsync();check(await service.ResumePausedMediaAsync(records,true)==0,"exception success");check(!records[0].CanAutoResume,"exception retriable");}});
+        await test("dispose active rest never resumes",async()=>{var a=new Session();var coordinator=new RestMediaCoordinator(new MediaControlService(new Backend(a)));var id=Guid.NewGuid();await coordinator.BeginAsync(id,new RestMediaOptions(true,true));coordinator.Dispose();await coordinator.CompleteAsync(id,true);check(a.Plays==0,"exit resumed");});
+        await test("new cycle cannot replace active cycle",async()=>{var a=new Session();using(var coordinator=new RestMediaCoordinator(new MediaControlService(new Backend(a)))){var id=Guid.NewGuid();await coordinator.BeginAsync(id,new RestMediaOptions(true,false));await coordinator.BeginAsync(Guid.NewGuid(),new RestMediaOptions(true,true));await coordinator.CompleteAsync(id,true);check(a.Pauses==1&&a.Plays==0,"active replaced");}});
         await test("coordinator sequential twenty cycles",async()=>{var a=new Session();using(var c=new RestMediaCoordinator(new MediaControlService(new Backend(a)))){for(int i=0;i<20;i++){a.Change(MediaPlaybackStatus.Playing);var id=Guid.NewGuid();await c.BeginAsync(id,new RestMediaOptions(true,true));await c.CompleteAsync(id,true);}check(a.Pauses==20&&a.Plays==20,"cycles lost");}});
     }
     private sealed class Backend:IMediaSessionBackend
@@ -28,12 +31,12 @@ internal static class ResumeTests
     private sealed class Session:IResumableMediaSession
     {
         private readonly object identity=new object();public object Identity{get{return identity;}}
-        internal int Pauses,Plays;internal string Title="title";internal bool PlayResult=true,Unsubscribed;internal Func<Task> BeforePause;
+        internal int Pauses,Plays;internal string Title="title";internal bool PlayResult=true,Unsubscribed,ThrowPlay;internal Func<Task> BeforePause;
         private MediaPlaybackStatus state=MediaPlaybackStatus.Playing;private Action<MediaPlaybackStatus> playback;internal Action Media=()=>{};
         public Task<MediaPlaybackState> GetPlaybackStateAsync(CancellationToken t){return Task.FromResult(new MediaPlaybackState(state,true));}
         public Task<MediaMetadata> GetMetadataAsync(CancellationToken t){return Task.FromResult(new MediaMetadata("app",Title));}
         public async Task<bool> TryPauseAsync(CancellationToken t){Pauses++;if(BeforePause!=null)await BeforePause();Change(MediaPlaybackStatus.Paused);return true;}
-        public Task<bool> TryPlayAsync(CancellationToken t){Plays++;if(PlayResult)Change(MediaPlaybackStatus.Playing);return Task.FromResult(PlayResult);}
+        public Task<bool> TryPlayAsync(CancellationToken t){Plays++;if(ThrowPlay)throw new InvalidOperationException("play failure");if(PlayResult)Change(MediaPlaybackStatus.Playing);return Task.FromResult(PlayResult);}
         internal void Change(MediaPlaybackStatus value){state=value;if(playback!=null)playback(value);}
         public IDisposable Watch(Action<MediaPlaybackStatus> p,Action m){playback=p;Media=m;return new Subscription(()=>{Unsubscribed=true;playback=null;Media=()=>{};});}
         private sealed class Subscription:IDisposable{private readonly Action dispose;internal Subscription(Action d){dispose=d;}public void Dispose(){dispose();}}

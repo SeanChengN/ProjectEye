@@ -6,7 +6,7 @@
     <OutputPath>$(EvidencePath)\bin\</OutputPath><IntermediateOutputPath>$(EvidencePath)\obj\Tests\</IntermediateOutputPath>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
-  <ItemGroup><Reference Include="System" /><Reference Include="System.Core" /><Compile Include="Program.cs" /><Compile Include="ResumeTests.cs" /><None Include="App.config" /><None Include="app.manifest" />
+  <ItemGroup><Reference Include="System" /><Reference Include="System.Core" /><Reference Include="System.Runtime.WindowsRuntime"><HintPath>$(WinRtBridge)</HintPath><Private>False</Private></Reference><Reference Include="Windows"><HintPath>$(WindowsMetadata)</HintPath><IsWinMDFile>true</IsWinMDFile><Private>False</Private></Reference><Compile Include="Program.cs" /><Compile Include="ResumeTests.cs" /><Compile Include="SyntheticTests.cs" /><None Include="App.config" /><None Include="app.manifest" />
     <ProjectReference Include="..\..\modules\MediaControl\ProjectEye.MediaControl.csproj"><Name>ProjectEye.MediaControl</Name></ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

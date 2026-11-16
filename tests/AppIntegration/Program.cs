@@ -47,6 +47,23 @@ internal static class Integration
                 Check(resume.IsEnabled,"resume enabled with pause");
                 viewModel.Model.MediaAutoResume=true;viewModel.Model.MediaAutoPause=false;
                 Check(!viewModel.Model.MediaAutoResume&&!config.options.Media.AutoResume,"disabling pause clears resume");
+                var tabs=Find<System.Windows.Controls.TabControl>(settingsWindow);
+                foreach(System.Windows.Controls.TabItem item in tabs.Items)
+                    if(item.Header!=null&&(item.Header.ToString()=="媒体控制"||item.Header.ToString()=="Media control"))item.IsSelected=true;
+                await Dispatcher.Yield(DispatcherPriority.DataBind);
+                settingsWindow.ApplyTemplate();settingsWindow.Measure(new Size(580,400));settingsWindow.Arrange(new Rect(0,0,580,400));settingsWindow.UpdateLayout();
+                var bitmap=new System.Windows.Media.Imaging.RenderTargetBitmap(580,400,96,96,System.Windows.Media.PixelFormats.Pbgra32);
+                var content=(FrameworkElement)settingsWindow.Content;
+                content.Measure(new Size(580,400));content.Arrange(new Rect(0,0,580,400));content.UpdateLayout();
+                var visual=new System.Windows.Media.DrawingVisual();
+                using(var drawing=visual.RenderOpen())
+                {
+                    drawing.DrawRectangle(System.Windows.Media.Brushes.White,null,new Rect(0,0,580,400));
+                    drawing.DrawRectangle(new System.Windows.Media.VisualBrush(content),null,new Rect(0,0,580,400));
+                }
+                bitmap.Render(visual);
+                var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                using(var output=File.Create(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"media-settings.png")))encoder.Save(output);
                 settingsWindow.Close();
                 config.options.Media.AutoPause=true;config.options.Media.AutoResume=true;config.options.Media.Scope=1;config.options.Media.Logging=false;
                 Check(config.Save(),"settings save");
@@ -62,6 +79,12 @@ internal static class Integration
             finally{app.Shutdown(result);}
         }),DispatcherPriority.ApplicationIdle);
         app.Run();return result;
+    }
+    private static T Find<T>(DependencyObject node) where T:DependencyObject
+    {
+        if(node is T)return (T)node;
+        foreach(var child in LogicalTreeHelper.GetChildren(node))if(child is DependencyObject){var found=Find<T>((DependencyObject)child);if(found!=null)return found;}
+        return null;
     }
     private static void Check(bool condition,string name){if(!condition)throw new Exception(name);Console.WriteLine("PASS "+name);}
 }

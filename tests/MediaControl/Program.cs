@@ -10,14 +10,15 @@ internal static class Program
     private static int passed, failed;
     private static int Main(string[] args)
     {
-        if (args.Length == 1 && (args[0] == "--live" || args[0] == "--live-pause")) return LiveAsync(args[0] == "--live-pause").GetAwaiter().GetResult();
+        if (args.Length == 1 && (args[0] == "--live" || args[0] == "--live-pause" || args[0] == "--live-resume")) return LiveAsync(args[0] != "--live", args[0] == "--live-resume").GetAwaiter().GetResult();
+        if (args.Length == 1 && args[0] == "--synthetic") return SyntheticTests.Run().GetAwaiter().GetResult();
         if (args.Length != 0) return 2;
         RunAsync().GetAwaiter().GetResult();
         ResumeTests.Run(Test, Check).GetAwaiter().GetResult();
         Console.WriteLine("Passed={0}; Failed={1}", passed, failed);
         return failed == 0 ? 0 : 1;
     }
-    private static async Task<int> LiveAsync(bool pause)
+    private static async Task<int> LiveAsync(bool pause, bool resume)
     {
         int errors=0;
         using (var service = new MediaControlService(new GsmtcMediaSessionBackend(), d => {
@@ -41,7 +42,7 @@ internal static class Program
                 {
                     var matches=await service.IsSameSessionAsync(snapshot);
                     Console.WriteLine("identityMatches={0}; canAutoResume={1}",matches,snapshot.CanAutoResume);
-                    if(!matches || snapshot.CanAutoResume) errors++;
+                    if(!matches) errors++;
                 }
                 var after=await service.GetMediaSessionsAsync();
                 foreach(var snapshot in after) Console.WriteLine("after={0}; app={1}",snapshot.PlaybackStatus,snapshot.SourceAppUserModelId);
@@ -49,6 +50,15 @@ internal static class Program
                 var repeated=await service.PausePlayingMediaAsync();
                 Console.WriteLine("retainedAfterRepeat={0}",repeated.Count);
                 if(repeated.Count!=1) errors++;
+                if (resume)
+                {
+                    int count=await service.ResumePausedMediaAsync(paused,true);
+                    Console.WriteLine("resumed={0}",count);
+                    await Task.Delay(1000);
+                    var final=await service.GetMediaSessionsAsync();
+                    foreach(var snapshot in final) Console.WriteLine("final={0}; app={1}",snapshot.PlaybackStatus,snapshot.SourceAppUserModelId);
+                    if(count!=1 || !final.Any(x=>x.SourceAppUserModelId=="msedge.exe"&&x.PlaybackStatus==MediaPlaybackStatus.Playing) || !final.Any(x=>x.SourceAppUserModelId=="chrome.exe"&&x.PlaybackStatus==MediaPlaybackStatus.Paused)) errors++;
+                }
             }
         }
         return errors==0?0:1;

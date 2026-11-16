@@ -11,3 +11,5 @@
 - RTK: noisy summary-oriented read-only checks only. Use native tools for exact logs, diffs and all mutations.
 - CodeGraph: prefer for unfamiliar cross-file flow; no index currently exists. Use targeted rg when unavailable; do not commit graph data.
 - Delivery: relevant build and runtime checks, exact diff review, `git diff --check`, final Git status and repository identity. Record manual vs automated evidence and untested environments separately. Commit each completed phase, without pushing or publishing.
+
+- Comprehensive acceptance: [Phase 5 progress](docs/PHASE5-VALIDATION.md). Keep actual desktop, synthetic, unit, long-run and deferred OS results distinct; do not mark skipped fixtures as passed.
