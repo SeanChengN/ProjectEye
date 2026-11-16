@@ -122,7 +122,7 @@ namespace ProjectEye.Core.Service
             CreateTrayMenu();
 
 
-            //notifyIcon.Text = "Project Eye";
+            //notifyIcon.Text = "ProjectEye Enhanced";
             notifyIcon.Visible = true;
             notifyIcon.MouseMove += NotifyIcon_MouseMove;
             notifyIcon.MouseClick += notifyIcon_MouseClick;
@@ -155,15 +155,15 @@ namespace ProjectEye.Core.Service
                     }
                 }
 
-                SetText($"Project Eye\r\n{Application.Current.Resources["Lang_Thenextbreak"]}: " + restStr);
+                SetText($"ProjectEye Enhanced\r\n{Application.Current.Resources["Lang_Thenextbreak"]}: " + restStr);
             }
             else if (config.options.General.Noreset)
             {
-                SetText($"Project Eye: {Application.Current.Resources["Lang_Reminderisoff"]}");
+                SetText($"ProjectEye Enhanced: {Application.Current.Resources["Lang_Reminderisoff"]}");
             }
             else if (!backgroundWorker.IsBusy)
             {
-                SetText("Project Eye");
+                SetText("ProjectEye Enhanced");
             }
             MouseMoveTrayIcon?.Invoke(sender, e);
         }
@@ -172,12 +172,12 @@ namespace ProjectEye.Core.Service
         private void BackgroundWorker_DoWork()
         {
             UpdateIcon("overheated", false);
-            SetText($"Project Eye: {Application.Current.Resources["Lang_TimeconsumingOperation"]}");
+            SetText($"ProjectEye Enhanced: {Application.Current.Resources["Lang_TimeconsumingOperation"]}");
         }
         //后台工作任务运行结束时
         private void BackgroundWorker_OnCompleted()
         {
-            SetText("Project Eye");
+            SetText("ProjectEye Enhanced");
             UpdateIcon();
         }
 

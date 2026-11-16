@@ -1,3 +1,11 @@
+# ProjectEye Enhanced — 本地测试版
+
+当前测试版：**1.0.0-beta.1**。基于下述上游 ProjectEye，保留原有功能并增加系统媒体控制。
+
+使用方法、播放器设置、已知限制与可恢复卸载见 [测试版说明](docs/TEST-VERSION.md)，变更见 [CHANGELOG](CHANGELOG.md)。构建/打包入口见 [Phase 6](docs/PHASE6-TEST-RELEASE.md)。以下保留上游介绍和署名；其中上游下载链接不提供本增强版。
+
+---
+
 # Project Eye
 
 一个基于 `20-20-20` 规则的用眼休息提醒软件（Windows），帮助你保持健康的工作状态，追踪每天的用眼情况。

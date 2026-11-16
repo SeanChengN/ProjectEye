@@ -31,6 +31,11 @@ internal static class Integration
                 rest.Start();rest.Cancel();rest.Cancel();await Task.Delay(1300);
                 Check(starts==2&&ends==1&&cancels==1&&!rest.IsResting,"cancel stops timer once");
                 var viewModel=(ProjectEye.ViewModels.OptionsViewModel)typeof(ProjectEye.Core.WindowManager).GetMethod("CreateViewModel",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{"OptionsWindow"});
+                Check(viewModel.Model.Version=="1.0.0-beta.1","enhanced prerelease version shown");
+                var updateModel=(ProjectEye.ViewModels.UpdateViewModel)typeof(ProjectEye.Core.WindowManager).GetMethod("CreateViewModel",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{"UpdateWindow"});
+                Check(!updateModel.PlayProcess&&updateModel.UpVisibility==Visibility.Collapsed&&updateModel.InstallVisibility==Visibility.Collapsed,"upstream update controls disabled");
+                Check(updateModel.VersionInfo.Contains("1.4.3"),"upstream baseline retained in update notice");
+                Check(Path.GetFullPath(Environment.CurrentDirectory).TrimEnd(Path.DirectorySeparatorChar)==Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar),"application owns relative data directory");
                 var settingsWindow=new ProjectEye.Views.OptionsWindow {DataContext=viewModel};
                 // This is an in-process binding test; it does not inject input or inspect desktop UI.
                 var pause=(Project1.UI.Controls.Toggle)settingsWindow.FindName("MediaPauseToggle");

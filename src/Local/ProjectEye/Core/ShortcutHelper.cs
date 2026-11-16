@@ -39,7 +39,7 @@ namespace ProjectEye.Core
         {
             string path = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.Startup),
-                    "Project Eye.lnk");
+                    "ProjectEye Enhanced.lnk");
             if (startup)
             {
                 if (File.Exists(path))
@@ -52,7 +52,7 @@ namespace ProjectEye.Core
             {
                 if (File.Exists(path))
                 {
-                    File.Delete(path);
+                    Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(path, Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
                 }
                 return true;
             }
@@ -66,7 +66,7 @@ namespace ProjectEye.Core
         {
             return CreateShortcut(Path.Combine(
                      Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-                     "Project Eye.lnk"), "");
+                     "ProjectEye Enhanced.lnk"), "");
         }
     }
 }

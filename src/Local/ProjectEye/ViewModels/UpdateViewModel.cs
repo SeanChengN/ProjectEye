@@ -64,15 +64,18 @@ namespace ProjectEye.ViewModels
             outPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory);
 
             openurlCommand = new Command(new Action<object>(openurlCommand_action));
-            updateCommand = new Command(new Action<object>(updateCommand_action));
-            installCommand = new Command(new Action<object>(installCommand_action));
+            updateCommand = new Command(new Action<object>(_ => { }));
+            installCommand = new Command(new Action<object>(_ => { }));
             githubRelease = new GithubRelease(githubUrl, version);
             githubRelease.RequestCompleteEvent += Updater_RequestCompleteEvent;
             githubRelease.RequestErrorEvent += Updater_RequestErrorEvent;
 
 
-            githubRelease.GetRequest();
-            PlayProcess = true;
+            // Local beta: never query or install the upstream application.
+            bool english = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "en";
+            Tip = english ? "Local test version: automatic updates are disabled." : "本地测试版：已停用自动更新。";
+            VersionInfo = english ? "Install the next test package manually. Upstream: ProjectEye 1.4.3." : "请使用后续测试包手动更新。上游基线：ProjectEye 1.4.3。";
+            PlayProcess = false;
         }
 
         private void installCommand_action(object obj)

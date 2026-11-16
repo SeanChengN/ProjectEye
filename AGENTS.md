@@ -17,3 +17,5 @@
 - User decision (2026-11-16): keep strict resume guards. Repeated Paused notifications invalidate this session's resume eligibility; pause-only degradation is accepted. Do not deduplicate notifications to improve resume rate or claim successful resume from accepted degradation.
 
 - Desktop player evidence and exact-target test CLI: [player compatibility](docs/PLAYER-COMPATIBILITY.md). Missing SMTC registration is configuration-specific; never count zero target sessions as a successful pause test.
+
+- Local beta packaging: [Phase 6 guide](docs/PHASE6-TEST-RELEASE.md), `scripts/Build-TestRelease.ps1 -Plan -IsccPath <signed ISCC.exe>` then the same command without `-Plan`. User deferred Codex 24-hour acceptance to actual use and authorized beta.1 before Phase 5 completion; formal Release still needs explicit confirmation. No upstream updater in beta payload; never run it.

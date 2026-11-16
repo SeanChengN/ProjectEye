@@ -485,13 +485,15 @@ Task<IReadOnlyList<MediaSessionSnapshot>>
 
 ### Phase 6：正式发布
 
+2026-11-16 用户批准先进入本阶段制作本地 `1.0.0-beta.1`，24小时长期运行交由用户实际使用，不在Codex等待；这不代表Phase5全部通过，也不是正式Release授权。Windows11仍延期。本轮交付及证据见 [Phase6测试版](docs/PHASE6-TEST-RELEASE.md)。
+
 - [ ] 清理调试代码。
-- [ ] 完成版本号设置。
-- [ ] 生成安装包。
-- [ ] 生成便携版。
+- [x] 完成版本号设置。
+- [x] 生成安装包。
+- [x] 生成便携版。
 - [ ] 验证安装、卸载和升级。
-- [ ] 编写 README。
-- [ ] 编写更新日志。
+- [x] 编写 README。
+- [x] 编写更新日志。
 
 交付：ProjectEye Enhanced 1.0.0。
 

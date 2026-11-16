@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0-beta.1",
+  "configuration": "Release",
+  "channel": "local-test",
+  "targetFramework": "v4.5",
+  "publicationAllowed": false,
+  "signed": false,
+  "excludedFiles": ["ProjectEyeUp.exe", "*.pdb"],
+  "requiredFiles": ["ProjectEye.exe", "ProjectEyeBug.exe", "ProjectEye.MediaControl.dll", "x86/SQLite.Interop.dll", "x64/SQLite.Interop.dll"]
+}

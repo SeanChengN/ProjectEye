@@ -25,6 +25,7 @@ namespace ProjectEye
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            System.IO.Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory);
             //全局异常捕获
             DispatcherUnhandledException += App_DispatcherUnhandledException;
 
@@ -95,7 +96,7 @@ namespace ProjectEye
         private bool IsRuned()
         {
             bool ret;
-            mutex = new System.Threading.Mutex(true, "projecteye", out ret);
+            mutex = new System.Threading.Mutex(true, "projecteye-enhanced", out ret);
             if (!ret)
             {
 #if !DEBUG

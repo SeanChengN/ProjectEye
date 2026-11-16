@@ -641,7 +641,7 @@
                                 </EventTrigger>
                             </Image.Triggers>
                         </Image>
-                        <TextBlock TextWrapping="Wrap" Text="Project Eye"
+                        <TextBlock TextWrapping="Wrap" Text="ProjectEye Enhanced"
                                Margin="0,10,0,0" FontWeight="Bold"/>
                         <TextBlock TextWrapping="Wrap" Text="{DynamicResource Lang_Aprogramwhichprotectsyoureyesbehindthescenes}"
                                Margin="0,10,0,0" Opacity=".5"/>

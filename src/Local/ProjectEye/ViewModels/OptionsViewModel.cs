@@ -44,8 +44,7 @@ namespace ProjectEye.ViewModels
             Model.PreAlertActions = systemResources.PreAlertActions;
             Model.Languages = systemResources.Languages;
 
-            string[] version = Assembly.GetExecutingAssembly().GetName().Version.ToString().Split('.');
-            Model.Version = version[0] + "." + version[1] + "." + version[2];
+            Model.Version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
 
 
             applyCommand = new Command(new Action<object>(applyCommand_action));
