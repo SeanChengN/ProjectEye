@@ -166,15 +166,12 @@ namespace ProjectEye.MediaControl
                             paused.Add(snapshot);
                             if (guard != null)
                             {
-                                // The callback may lag the returned command. Polling can only confirm our initial pause.
-                                for (int retry = 0; retry < 5 && !guard.Confirmed; retry++)
-                                {
-                                    var observed = await Bounded(session.GetPlaybackStateAsync, linked.Token).ConfigureAwait(false);
-                                    if (observed.Status == MediaPlaybackStatus.Paused) guard.Confirm();
-                                    else if (observed.Status != MediaPlaybackStatus.Playing) guard.Invalidate();
-                                    if (!guard.Confirmed) await Task.Delay(100, linked.Token).ConfigureAwait(false);
-                                }
+                                // State polling cannot consume the initial event: a late own Paused event
+                                // would otherwise look like a second, user-originated notification.
+                                for (int retry = 0; retry < 20 && !guard.Confirmed && !guard.Invalid; retry++)
+                                    await Task.Delay(100, linked.Token).ConfigureAwait(false);
                                 if (!guard.Confirmed) guard.Invalidate();
+                                if (!guard.Eligible) Log("ResumeGuard:" + guard.Reason);
                             }
                             Log("PauseSucceeded");
                         }
@@ -227,7 +224,8 @@ namespace ProjectEye.MediaControl
                     var sessions = await Bounded(t => backend.GetSessionsAsync(MediaControlScope.AllSessions, t), linked.Token).ConfigureAwait(false);
                     foreach (var snapshot in snapshots)
                     {
-                        if (snapshot == null || snapshot.Owner != owner || snapshot.Epoch != epoch || !snapshot.CanAutoResume || !paused.Contains(snapshot)) continue;
+                        if (snapshot == null || snapshot.Owner != owner || snapshot.Epoch != epoch || !paused.Contains(snapshot)) continue;
+                        if (!snapshot.CanAutoResume) { Log("ResumeIneligible:" + (snapshot.Guard == null ? "NoWatch" : snapshot.Guard.Reason)); continue; }
                         var session = (sessions ?? new IMediaSession[0]).FirstOrDefault(s => s != null && ReferenceEquals(s.Identity, snapshot.SessionReference)) as IResumableMediaSession;
                         if (session == null) { snapshot.Guard.Invalidate(); continue; }
                         try
