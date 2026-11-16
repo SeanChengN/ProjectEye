@@ -2,7 +2,7 @@
 
 ## 当前结论
 
-Phase 0 已通过并提交为 `f3351ac`。独立 PoC 已证明：在本机 Windows 10 22H2、现有 .NET Framework CLR 上，**目标 net45 无需升级即可直接调用 GSMTC**。成功初始化管理器、枚举无会话场景，并完成 Edge/Chrome 双播放器暂停、重复暂停及 Playing/Paused 混合状态测试。Windows 10 22H2 本轮验证通过；用户明确没有可用的 Windows 11 环境，因此 Phase 1 尚未通过，不进入 Phase 2。
+Phase 0 已通过并提交为 `f3351ac`。独立 PoC 已证明：在本机 Windows 10 22H2、现有 .NET Framework CLR 上，**目标 net45 无需升级即可直接调用 GSMTC**。成功初始化管理器、枚举无会话场景，并完成 Edge/Chrome 双播放器暂停、重复暂停及 Playing/Paused 混合状态测试。Windows 10 22H2 本轮验证通过；用户明确没有可用的 Windows 11 环境，因此 Windows 11 兼容性尚未验收。2026-11-16 用户随后明确批准忽略该环境并继续 Phase 2；Windows 11 仍保持待办。
 
 主程序 src 未修改，未接入 RestStart/RestCompleted，未新增运行时 NuGet 包。
 
@@ -54,8 +54,8 @@ Windows 11 验证可复制 PoC 输出的 bin 目录到可写目录，在有 .NET
 
 - 已验：实际 Playing/Paused 读取、双播放器暂停成功、原本暂停会话保持不变和重复执行；Stopped会话尚未实际准备测试。
 - 已验：两个浏览器播放器同时播放；非浏览器播放器、不支持控制、播放中关闭会话仍未实际验证，不扩大兼容性结论。
-- Windows 10 22H2 实际媒体场景通过；Windows 11 未测，用户已明确没有环境，这是当前阶段阻断项。
-- 完成全部 Phase 1 验证后才能勾选对应项目及进入 Phase 2。没有 Windows 11 环境时保存可运行 PoC和步骤，明确阻断，不以本机结果代替。
+- Windows 10 22H2 实际媒体场景通过；Windows 11 未测，用户已明确没有环境，原为阶段阻断，用户于2026-11-16明确延期并允许继续Phase2。
+- 仅勾选实际验证项目；用户已批准Windows11延期并进入Phase2，保留PoC跨系统验证步骤，不以本机结果代替Windows11结果。
 - 原有 Json.NET 高危告警仍为主程序正式发布前待处理项，与本 PoC 编译成功不冲突。
 
 ## 本轮实测补充
@@ -64,4 +64,4 @@ Windows 11 验证可复制 PoC 输出的 bin 目录到可写目录，在有 .NET
 
 最终便携验证包保存在 artifacts/gsmtc/20261116-163305-804/GsmtcPoc-net45-validation.zip。ZIP只有最终 bin 的 EXE/config/PDB；旧构建含 Windows.winmd 的包保留为历史本地证据，不用来分发。当前没有对外发布，正式分发前仍需完成相关许可审查。
 
-无需升级项目框架即可开始媒体模块设计，但原计划明确要求 Windows 11 实测后才进入 Phase 2，因此保持阶段门槛，等待该环境验证。跨系统步骤见上文；未将等待环境误写为功能实现失败。
+无需升级项目框架即可开始媒体模块设计，用户已于2026-11-16明确批准Windows11延期并继续Phase2，按该最新指示推进独立模块。跨系统步骤见上文；未将等待环境误写为功能实现失败。

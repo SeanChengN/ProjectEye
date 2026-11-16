@@ -1,0 +1,16 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" />
+  <PropertyGroup>
+    <OutputType>Library</OutputType><AssemblyName>ProjectEye.MediaControl</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion><LangVersion>7.3</LangVersion>
+    <OutputPath>$(EvidencePath)\bin\</OutputPath><IntermediateOutputPath>$(EvidencePath)\obj\MediaControl\</IntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" /><Reference Include="System.Core" />
+    <Reference Include="System.Runtime.WindowsRuntime"><HintPath>$(WinRtBridge)</HintPath><Private>False</Private></Reference>
+    <Reference Include="Windows"><HintPath>$(WindowsMetadata)</HintPath><IsWinMDFile>true</IsWinMDFile><Private>False</Private></Reference>
+    <Compile Include="MediaControlService.cs" /><Compile Include="GsmtcMediaSessionBackend.cs" />
+  </ItemGroup>
+  <Target Name="ValidateBuildInputs" BeforeTargets="PrepareForBuild"><Error Condition="'$(EvidencePath)' == '' Or !Exists('$(WindowsMetadata)') Or !Exists('$(WinRtBridge)')" Text="Build using scripts/Test-MediaControl.ps1." /></Target>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

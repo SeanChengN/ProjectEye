@@ -430,19 +430,19 @@ Task<IReadOnlyList<MediaSessionSnapshot>>
 
 交付：媒体控制 PoC 和兼容性报告。
 
-本阶段未通过前，不进入大规模代码修改。
+原阶段门槛保留；2026-11-16 用户明确批准暂缓 Windows 11 实测，基于 Windows 10 22H2 验证结果继续 Phase 2。Windows 11 项目保持未勾选。
 
 ### Phase 2：媒体控制模块
 
-- [ ] 新增 MediaControlService。
-- [ ] 新增 MediaSessionSnapshot。
-- [ ] 实现媒体会话枚举。
-- [ ] 实现状态判断。
-- [ ] 实现安全暂停。
-- [ ] 实现会话身份识别。
-- [ ] 实现异常处理。
-- [ ] 实现并发控制。
-- [ ] 实现单元测试。
+- [x] 新增 MediaControlService。
+- [x] 新增 MediaSessionSnapshot。
+- [x] 实现媒体会话枚举。
+- [x] 实现状态判断。
+- [x] 实现安全暂停。
+- [x] 实现会话身份识别。
+- [x] 实现异常处理。
+- [x] 实现并发控制。
+- [x] 实现单元测试。
 
 交付：独立媒体控制模块。
 

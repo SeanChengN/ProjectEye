@@ -1,0 +1,13 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><AssemblyName>MediaControl.Tests</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion><LangVersion>7.3</LangVersion>
+    <OutputPath>$(EvidencePath)\bin\</OutputPath><IntermediateOutputPath>$(EvidencePath)\obj\Tests\</IntermediateOutputPath>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup><Reference Include="System" /><Reference Include="System.Core" /><Compile Include="Program.cs" /><None Include="App.config" /><None Include="app.manifest" />
+    <ProjectReference Include="..\..\modules\MediaControl\ProjectEye.MediaControl.csproj"><Name>ProjectEye.MediaControl</Name></ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
