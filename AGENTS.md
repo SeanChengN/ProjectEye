@@ -13,3 +13,5 @@
 - Delivery: relevant build and runtime checks, exact diff review, `git diff --check`, final Git status and repository identity. Record manual vs automated evidence and untested environments separately. Commit each completed phase, without pushing or publishing.
 
 - Comprehensive acceptance: [Phase 5 progress](docs/PHASE5-VALIDATION.md). Keep actual desktop, synthetic, unit, long-run and deferred OS results distinct; do not mark skipped fixtures as passed.
+
+- User decision (2026-11-16): keep strict resume guards. Repeated Paused notifications invalidate this session's resume eligibility; pause-only degradation is accepted. Do not deduplicate notifications to improve resume rate or claim successful resume from accepted degradation.

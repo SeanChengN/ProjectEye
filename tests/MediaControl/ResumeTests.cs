@@ -12,6 +12,7 @@ internal static class ResumeTests
         await test("safe resume once",async()=>{var a=new Session();using(var s=new MediaControlService(new Backend(a))){var r=await s.PausePlayingMediaAsync();check(await s.ResumePausedMediaAsync(r,true)==1,"not resumed");check(await s.ResumePausedMediaAsync(r,true)==0&&a.Plays==1,"double resume");}});
         await test("user playback change invalidates resume",async()=>{var a=new Session();using(var s=new MediaControlService(new Backend(a))){var r=await s.PausePlayingMediaAsync();a.Change(MediaPlaybackStatus.Playing);a.Change(MediaPlaybackStatus.Paused);check(!r[0].CanAutoResume&&await s.ResumePausedMediaAsync(r,true)==0,"user overwritten");}});
         await test("duplicate Paused notification conservatively invalidates",async()=>{var a=new Session();using(var s=new MediaControlService(new Backend(a))){var r=await s.PausePlayingMediaAsync();a.Change(MediaPlaybackStatus.Paused);check(await s.ResumePausedMediaAsync(r,true)==0,"ambiguous event resumed");}});
+        await test("duplicate notifications during own pause allow pause only",async()=>{var a=new Session{DuplicatePauseEvent=true};using(var service=new MediaControlService(new Backend(a))){var records=await service.PausePlayingMediaAsync();check(records.Count==1&&records[0].PauseSucceeded,"successful pause lost");check(!records[0].CanAutoResume,"duplicate pause eligible");check(await service.ResumePausedMediaAsync(records,true)==0&&a.Plays==0,"ambiguous session played");check((await service.PausePlayingMediaAsync()).Count==1&&a.Pauses==1,"duplicate pause command");}});
         await test("media changed away and back invalidates",async()=>{var a=new Session();using(var s=new MediaControlService(new Backend(a))){var r=await s.PausePlayingMediaAsync();a.Media();check(await s.ResumePausedMediaAsync(r,true)==0,"changed resumed");}});
         await test("unreported metadata change still rejected",async()=>{var a=new Session();using(var s=new MediaControlService(new Backend(a))){var r=await s.PausePlayingMediaAsync();a.Title="different";check(await s.ResumePausedMediaAsync(r,true)==0,"fingerprint skipped");}});
         await test("gone session never resumed",async()=>{var a=new Session();var b=new Backend(a);using(var s=new MediaControlService(b)){var r=await s.PausePlayingMediaAsync();b.Sessions.Clear();check(await s.ResumePausedMediaAsync(r,true)==0,"gone resumed");}});
@@ -33,12 +34,12 @@ internal static class ResumeTests
     private sealed class Session:IResumableMediaSession
     {
         private readonly object identity=new object();public object Identity{get{return identity;}}
-        internal int Pauses,Plays,PauseEventDelay;internal bool SuppressPauseEvent;internal string Title="title";internal bool PlayResult=true,Unsubscribed,ThrowPlay;internal Func<Task> BeforePause;
+        internal int Pauses,Plays,PauseEventDelay;internal bool SuppressPauseEvent,DuplicatePauseEvent;internal string Title="title";internal bool PlayResult=true,Unsubscribed,ThrowPlay;internal Func<Task> BeforePause;
         private MediaPlaybackStatus state=MediaPlaybackStatus.Playing;private Action<MediaPlaybackStatus> playback;internal Action Media=()=>{};
         public Task<MediaPlaybackState> GetPlaybackStateAsync(CancellationToken t){return Task.FromResult(new MediaPlaybackState(state,true));}
         public Task<MediaMetadata> GetMetadataAsync(CancellationToken t){return Task.FromResult(new MediaMetadata("app",Title));}
         public async Task<bool> TryPauseAsync(CancellationToken t){Pauses++;if(BeforePause!=null)await BeforePause();state=MediaPlaybackStatus.Paused;
-            if(!SuppressPauseEvent){if(PauseEventDelay==0){if(playback!=null)playback(state);}else{_ = Task.Run(async()=>{await Task.Delay(PauseEventDelay);if(playback!=null)playback(MediaPlaybackStatus.Paused);});}}
+            if(!SuppressPauseEvent){if(PauseEventDelay==0){if(playback!=null){playback(state);if(DuplicatePauseEvent)playback(state);}}else{_ = Task.Run(async()=>{await Task.Delay(PauseEventDelay);if(playback!=null)playback(MediaPlaybackStatus.Paused);});}}
             return true;}
         public Task<bool> TryPlayAsync(CancellationToken t){Plays++;if(ThrowPlay)throw new InvalidOperationException("play failure");if(PlayResult)Change(MediaPlaybackStatus.Playing);return Task.FromResult(PlayResult);}
         internal void Change(MediaPlaybackStatus value){state=value;if(playback!=null)playback(value);}

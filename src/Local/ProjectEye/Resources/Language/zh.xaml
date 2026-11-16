@@ -222,7 +222,7 @@
     <sys:String x:Key="Lang_MediaControl">媒体控制</sys:String>
     <sys:String x:Key="Lang_MediaPause">休息时自动暂停媒体</sys:String>
     <sys:String x:Key="Lang_MediaResume">休息结束后自动恢复媒体</sys:String>
-    <sys:String x:Key="Lang_MediaResumeHint">自动恢复默认关闭。仅恢复本次成功暂停、内容未变且未观察到用户操作的媒体；无法确认时保持暂停。设置将在下次休息生效。</sys:String>
+    <sys:String x:Key="Lang_MediaResumeHint">自动恢复默认关闭。仅恢复本次成功暂停、内容未变且未观察到用户操作的媒体；重复状态通知等无法确认的会话仅暂停、不自动恢复。设置将在下次休息生效。</sys:String>
     <sys:String x:Key="Lang_MediaScope">媒体控制范围</sys:String>
     <sys:String x:Key="Lang_MediaAll">所有正在播放的媒体会话</sys:String>
     <sys:String x:Key="Lang_MediaCurrent">当前主要媒体会话</sys:String>

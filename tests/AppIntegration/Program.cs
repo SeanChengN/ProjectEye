@@ -65,6 +65,14 @@ internal static class Integration
                 var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
                 using(var output=File.Create(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"media-settings.png")))encoder.Save(output);
                 settingsWindow.Close();
+                for(int cycle=0;cycle<20;cycle++)
+                {
+                    rest.Start();var cycleId=rest.CycleId;rest.Start();
+                    Check(rest.CycleId==cycleId,"cycle "+(cycle+1)+" duplicate guarded");
+                    await Task.Delay(1100);
+                    Check(!rest.IsResting,"cycle "+(cycle+1)+" timer ended");
+                }
+                Check(starts==22&&ends==21&&cancels==1,"twenty real dispatcher rest cycles");
                 config.options.Media.AutoPause=true;config.options.Media.AutoResume=true;config.options.Media.Scope=1;config.options.Media.Logging=false;
                 Check(config.Save(),"settings save");
                 var xml=new XmlDocument();xml.Load(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Data/config.xml"));

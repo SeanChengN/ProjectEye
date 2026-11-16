@@ -216,7 +216,7 @@
     <sys:String x:Key="Lang_MediaControl">Media control</sys:String>
     <sys:String x:Key="Lang_MediaPause">Pause media when a break starts</sys:String>
     <sys:String x:Key="Lang_MediaResume">Resume media after a break</sys:String>
-    <sys:String x:Key="Lang_MediaResumeHint">Resume is off by default. Only media paused by this break with unchanged content and no observed user changes is eligible. Uncertain sessions stay paused. Settings apply to the next break.</sys:String>
+    <sys:String x:Key="Lang_MediaResumeHint">Resume is off by default. Only media paused by this break with unchanged content and no observed user changes is eligible. Ambiguous sessions, including repeated status notifications, stay paused. Settings apply to the next break.</sys:String>
     <sys:String x:Key="Lang_MediaScope">Media control scope</sys:String>
     <sys:String x:Key="Lang_MediaAll">All playing media sessions</sys:String>
     <sys:String x:Key="Lang_MediaCurrent">Current primary media session</sys:String>

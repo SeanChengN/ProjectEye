@@ -4,7 +4,7 @@
 
 - 完整Release构建：artifacts/baseline/20261116-170446-688-Release，exit=0。
 - 完整Debug构建：artifacts/baseline/20261116-170723-092-Debug，exit=0。
-- 模块及协调器49项回归：artifacts/media-control/20261116-171334-487，Passed=49、Failed=0，包含20个顺序假会话休息周期。
+- 模块及协调器52项回归：artifacts/media-control/20261116-175935-265，Passed=52、Failed=0，包含重复自有Paused通知仅暂停不恢复、20个顺序假会话休息周期。
 - 真实GSMTC只读枚举Edge/Chrome：成功；原Phase1/2实际暂停证据继续有效。
 - 隔离WPF业务集成：旧配置默认值、重复开始、真实DispatcherTimer完成休息、取消停止计时、媒体控件绑定、开关依赖、保存/重载全部通过。Release证据artifacts/app-integration/20261116-171301-457；Debug证据artifacts/app-integration/20261116-171615-807，两者全部通过。
 - 媒体设置离屏布局：artifacts/app-integration/20261116-171301-457/app/media-settings.png，实际检查中文标签、禁用控件、范围和说明无截断。
@@ -12,7 +12,7 @@
 
 ## 未通过或待验证
 
-- 真实浏览器自动恢复：已实际执行两次，暂停成功但恢复被保守规则拒绝，exit=1，尚未通过。第二次明确诊断为 Edge 对一次暂停发送重复 Paused 通知，触发 ResumeGuard:Playback:Paused；Chrome一直保持暂停。
+- Edge保守降级：两次真实测试均成功暂停但不恢复，第二次原因明确为重复Paused通知；用户已选择接受该行为。保留原exit=1历史证据，不改写为恢复成功；仍需在符合严格条件的真实播放器上验证成功恢复。
 - 自建静音MediaPlayer合成夹具未向系统公开可发现会话，返回3（SKIP），不计通过。证据artifacts/media-control/20261116-170856-796/synthetic.log。
 - 24小时真实连续运行尚未执行；20个假会话周期不等于24小时实机稳定性。
 - 睡眠/唤醒、真实多显示器与DPI、非浏览器播放器、播放器退出/重启实机兼容性尚未完成。
@@ -33,4 +33,14 @@
 
 真实第二次测试在用户明确准备Edge播放/Chrome暂停后执行，日志显示ResumeGuard:Playback:Paused，identityMatches=true、CanAutoResume=false、resumed=0，最终两者Paused。证据位于artifacts/media-control/20261116-175501-668/live-resume-*.log（原始日志不提交）。这说明修复轮询竞态并未解决Edge重复同状态通知造成的兼容性问题，不能将自动恢复标为通过。
 
-按“两种不同方式未通过同一验收后停止”规则，不继续盲目试改。待用户决定：按实际状态变化去重同状态通知（仍拒绝Playing/Stopped/内容变化），或保留严格规则将此类播放器视为不支持自动恢复。GSMTC不能证明所有手动暂停来源，该限制不会通过去重消失。
+当时按“两种不同方式未通过同一验收后停止”规则停止试改并请求策略决定。用户随后明确选择保持最保守规则，此类会话仅暂停、不恢复；不采用同状态通知去重。GSMTC不能证明所有手动暂停来源，该限制保留。
+
+## 用户确认的降级策略及追加验证
+
+2026-11-16用户明确选择“保持最保守规则；此类播放器仅自动暂停、不自动恢复”。这是会话级行为，不是Edge进程黑名单：兼容播放器若满足连续监视、初次暂停通知、原对象/指纹、Paused等全部条件，仍可恢复；出现额外通知、内容变化或其他不确定状态时禁用本次恢复，不改变成功暂停记录。
+
+代码保护未放宽，新增同一TryPause调用内发出两条Paused通知的回归：成功记录1条、CanAutoResume=false、TryPlay调用0次、重复暂停不产生新命令，测试通过。中文/英文设置说明已明确重复通知可能导致仅暂停，不通过修改测试返回值掩盖先前真实恢复失败。
+
+最新Release构建artifacts/baseline/20261116-175952-776-Release通过。隔离真实App中的20次DispatcherTimer休息周期全部通过：每次重复Start保持同周期ID，每次真正计时结束，最终事件计数符合预期，配置保存/重新加载通过。证据artifacts/app-integration/20261116-180019-692/runtime.log；测试启用1秒休息并关闭媒体控制，不将它等同于20次真实播放器恢复或24小时稳定性。该目录app/media-settings.png已查看，新增降级说明正常换行，无截断。
+
+当前仍无法据此完成整个Phase5：缺少严格兼容播放器成功恢复实测、24小时真实运行、睡眠/唤醒、多显示器/DPI及更多播放器兼容性。Phase5清单保持未完成，Phase6未开始。
