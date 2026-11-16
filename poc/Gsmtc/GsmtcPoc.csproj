@@ -1,0 +1,26 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>GsmtcPoc</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <OutputPath>$(EvidencePath)\bin\</OutputPath>
+    <IntermediateOutputPath>$(EvidencePath)\obj\</IntermediateOutputPath>
+    <LangVersion>7.3</LangVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Runtime.WindowsRuntime"><HintPath>$(WinRtBridge)</HintPath><Private>False</Private></Reference>
+    <Reference Include="Windows"><HintPath>$(WindowsMetadata)</HintPath><IsWinMDFile>true</IsWinMDFile><Private>False</Private></Reference>
+    <Compile Include="Program.cs" />
+    <None Include="app.manifest" />
+    <None Include="App.config"><CopyToOutputDirectory>Never</CopyToOutputDirectory></None>
+  </ItemGroup>
+  <Target Name="ValidatePocBuildInputs" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(EvidencePath)' == ''" Text="Build with scripts/Build-GsmtcPoc.ps1 to provide an isolated EvidencePath." />
+    <Error Condition="!Exists('$(WindowsMetadata)') Or !Exists('$(WinRtBridge)')" Text="Windows SDK metadata and Framework WinRT bridge are required." />
+  </Target>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
