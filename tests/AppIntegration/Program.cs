@@ -30,6 +30,24 @@ internal static class Integration
                 Check(ends==1&&!rest.IsResting,"real dispatcher timer completes rest");
                 rest.Start();rest.Cancel();rest.Cancel();await Task.Delay(1300);
                 Check(starts==2&&ends==1&&cancels==1&&!rest.IsResting,"cancel stops timer once");
+                var viewModel=(ProjectEye.ViewModels.OptionsViewModel)typeof(ProjectEye.Core.WindowManager).GetMethod("CreateViewModel",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{"OptionsWindow"});
+                var settingsWindow=new ProjectEye.Views.OptionsWindow {DataContext=viewModel};
+                // This is an in-process binding test; it does not inject input or inspect desktop UI.
+                var pause=(Project1.UI.Controls.Toggle)settingsWindow.FindName("MediaPauseToggle");
+                var resume=(Project1.UI.Controls.Toggle)settingsWindow.FindName("MediaResumeToggle");
+                var scope=(System.Windows.Controls.ComboBox)settingsWindow.FindName("MediaScopeCombo");
+                Check(pause!=null&&resume!=null&&scope!=null,"media controls compiled");
+                await Dispatcher.Yield(DispatcherPriority.DataBind);
+                System.Windows.Data.BindingOperations.GetBindingExpression(resume,System.Windows.UIElement.IsEnabledProperty).UpdateTarget();
+                Console.WriteLine("Binding: status={0}; modelPause={1}; dataContext={2}",System.Windows.Data.BindingOperations.GetBindingExpression(resume,System.Windows.UIElement.IsEnabledProperty).Status,viewModel.Model.MediaAutoPause,resume.DataContext==null?"null":resume.DataContext.GetType().Name);
+                Check(!resume.IsEnabled,"resume disabled while pause off");
+                viewModel.Model.MediaAutoPause=true;
+                await Dispatcher.Yield(DispatcherPriority.DataBind);
+                System.Windows.Data.BindingOperations.GetBindingExpression(resume,System.Windows.UIElement.IsEnabledProperty).UpdateTarget();
+                Check(resume.IsEnabled,"resume enabled with pause");
+                viewModel.Model.MediaAutoResume=true;viewModel.Model.MediaAutoPause=false;
+                Check(!viewModel.Model.MediaAutoResume&&!config.options.Media.AutoResume,"disabling pause clears resume");
+                settingsWindow.Close();
                 config.options.Media.AutoPause=true;config.options.Media.AutoResume=true;config.options.Media.Scope=1;config.options.Media.Logging=false;
                 Check(config.Save(),"settings save");
                 var xml=new XmlDocument();xml.Load(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Data/config.xml"));

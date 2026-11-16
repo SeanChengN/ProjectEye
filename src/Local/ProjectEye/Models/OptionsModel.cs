@@ -48,6 +48,22 @@ namespace ProjectEye.Models
         public List<AnimationModel> Animations { get; set; }
         public List<ComboxModel> Languages { get; set; }
 
+        public bool MediaAutoPause
+        {
+            get { return Data.Media.AutoPause; }
+            set
+            {
+                Data.Media.AutoPause=value;
+                if(!value) Data.Media.AutoResume=false;
+                OnPropertyChanged();OnPropertyChanged("MediaAutoResume");OnPropertyChanged("MediaOptionsEnabled");
+            }
+        }
+        public bool MediaAutoResume
+        {
+            get { return Data.Media.AutoPause && Data.Media.AutoResume; }
+            set { Data.Media.AutoResume=Data.Media.AutoPause && value;OnPropertyChanged(); }
+        }
+        public bool MediaOptionsEnabled { get { return Data.Media.AutoPause; } }
         public bool IsPreAlert
         {
             get

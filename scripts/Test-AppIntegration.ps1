@@ -19,8 +19,11 @@ $data=Join-Path $app 'Data';New-Item -ItemType Directory -Path $data | Out-Null
 # A minimal legacy XML intentionally omits Media. Existing startup fills missing sections.
 $xml='<Options><General><WarnTime>1</WarnTime><RestTime>20</RestTime><Startup>false</Startup><Sound>false</Sound><Data>false</Data><LeaveListener>false</LeaveListener></General><Style/><KeyboardShortcuts/><Behavior/><Tomato/></Options>'
 [IO.File]::WriteAllText((Join-Path $data 'config.xml'),$xml,[Text.UTF8Encoding]::new($false))
-& (Join-Path $app 'AppIntegration.exe') 2>&1 | Tee-Object -FilePath (Join-Path $run 'runtime.log')
-$code=$LASTEXITCODE
+Push-Location -LiteralPath $app
+try {
+    & (Join-Path $app 'AppIntegration.exe') 2>&1 | Tee-Object -FilePath (Join-Path $run 'runtime.log')
+    $code=$LASTEXITCODE
+} finally { Pop-Location }
 [IO.File]::WriteAllText((Join-Path $run 'result.json'),(@{exitCode=$code;appBuild=$BuildDirectory;completedUtc=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
 Write-Output "APP_INTEGRATION_EVIDENCE=$run"
 if($code-ne0){throw 'App integration runtime failed'}

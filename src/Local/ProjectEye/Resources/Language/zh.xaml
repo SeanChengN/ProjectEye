@@ -219,4 +219,13 @@
     <sys:String x:Key="Lang_Learnmore">了解更多</sys:String>
     <sys:String x:Key="Lang_HandleTimeoutAutoRest">超时未选择时进入休息状态</sys:String>
 
+    <sys:String x:Key="Lang_MediaControl">媒体控制</sys:String>
+    <sys:String x:Key="Lang_MediaPause">休息时自动暂停媒体</sys:String>
+    <sys:String x:Key="Lang_MediaResume">休息结束后自动恢复媒体</sys:String>
+    <sys:String x:Key="Lang_MediaResumeHint">自动恢复默认关闭。仅恢复本次成功暂停、内容未变且未观察到用户操作的媒体；无法确认时保持暂停。设置将在下次休息生效。</sys:String>
+    <sys:String x:Key="Lang_MediaScope">媒体控制范围</sys:String>
+    <sys:String x:Key="Lang_MediaAll">所有正在播放的媒体会话</sys:String>
+    <sys:String x:Key="Lang_MediaCurrent">当前主要媒体会话</sys:String>
+    <sys:String x:Key="Lang_MediaLogging">启用媒体控制日志</sys:String>
+    <sys:String x:Key="Lang_MediaPrivacy">仅控制支持 Windows 系统媒体控制的播放器。日志仅存于本机，不保存媒体标题或艺术家，也不上传数据。</sys:String>
 </ResourceDictionary>
