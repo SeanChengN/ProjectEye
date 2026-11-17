@@ -35,3 +35,7 @@ ShowWindowAsync发出最小化，短时轮询状态；总等待预算200ms，内
 修复后完整Release：artifacts/baseline/20261116-205530-380-Release；52项媒体回归：artifacts/media-control/20261116-204333-772；WPF回归及行为设置布局：artifacts/app-integration/20261116-205730-790。两屏原生夹具3个普通/最大化目标全部最小化；贴边夹具保持原状，真实阻塞线程窗口24/39ms有界返回。失败和超时的模拟夹具验证200ms返回及迟到不重发。中文行为页离屏图已查看，说明正常换行、开关可见，无截断。
 
 修复后的最终候选为artifacts/test-release/20261116-205717-242-1.0.0-beta.2，ZIP校验及安装释放39文件哈希一致；重复安装exit=7，PowerShell5.1卸载exit=0，精确验证目录及Data标记已进入系统回收站。未覆盖beta.1，未运行原更新器。早期205312-801候选已被本候选替代，不交付给用户，原文件仍保留。实际Monitor伸缩修复等待用户复测，不把样式夹具通过等同于该应用实测。
+
+## beta.5 实测回归修正
+
+旧无边框置顶判断使用WS_CAPTION位，无法识别保留这些位的Tauri自绘窗口。2026-11-17用户仍观察到Monitor脱离吸附和任务栏恢复；改为排除所有置顶窗口并固定排除Monitor进程全部窗口，同时排除无激活窗、工具窗和无独立任务栏的从属窗口，发送最小化前重复检查。规则和验收见[BETA5-WINDOW-PROTECTION.md](BETA5-WINDOW-PROTECTION.md)。旧beta.2夹具记录不代表真实Monitor已通过。

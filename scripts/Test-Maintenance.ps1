@@ -70,6 +70,7 @@ try{
     foreach($view in @('Registry32','Registry64')){$base=[Microsoft.Win32.RegistryKey]::OpenBaseKey('CurrentUser',$view);$key=$base.CreateSubKey($keyRoot+'ProjectEyeEnhanced-beta2');$key.SetValue('InstallLocation',$root);$key.SetValue('UninstallString','NEVER EXECUTE THIS OLD HOST');$key.Dispose();$base.Dispose()}
     $failedUpgrade=Invoke-Tool @('--install','--source',$source,'--target',$root,'--fail-at','registration') -Failure
     Assert ((Get-Content (Join-Path $root 'test-package.json') -Raw|ConvertFrom-Json).version-eq'1.0.0-beta.2') 'Failed legacy upgrade restores old payload'
+    Assert ((Get-FileHash (Join-Path $root 'README.md')).Hash-eq(Get-FileHash (Join-Path $legacy 'README.md')).Hash-and(Get-FileHash (Join-Path $root 'CHANGELOG.md')).Hash-eq(Get-FileHash (Join-Path $legacy 'CHANGELOG.md')).Hash) 'Failed upgrade restores retired documents by hash'
     $restored=ViewKey Registry64 ($keyRoot+'ProjectEyeEnhanced-beta2');Assert ($restored.GetValue('UninstallString')-eq'NEVER EXECUTE THIS OLD HOST') 'Failed legacy upgrade restores registration';$restored.Dispose()
     $upgrade=Invoke-Tool @('--install','--source',$source,'--target',$root)
     Assert (((Get-Content (Join-Path $root 'test-package.json') -Raw|ConvertFrom-Json).version)-eq$release.version) 'Beta.2 in-place upgrade'

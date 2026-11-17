@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-beta.4",
+  "version": "1.0.0-beta.5",
   "configuration": "Release",
   "channel": "local-test",
   "targetFramework": "v4.5",
@@ -20,9 +20,39 @@
   "legacyManifestHashes": [
     "B474F2B2AB3FB7AFC357D72B51D03AF8997E62DF3F1951B18099B741C8EB2443",
     "ACD927C900903EE510E764F444A20463187369D229EA62CE237A82CEE50C2BB4",
-    "EB376495579EF66C6FD1CC1B741889254C19AA8A9CDD513D31E905E6404F606C"
+    "EB376495579EF66C6FD1CC1B741889254C19AA8A9CDD513D31E905E6404F606C",
+    "44ACF392599F13629F10E818C3229051376D8835CB5C59408A76CAF3F9E7EBAD"
   ],
   "legacyMaintenanceHashes": [
     "3ABD788AED05E5737A320232CBA6F44786502F50355B0AF32D281407FB31CDD8"
+  ],
+  "runtimeFiles": [
+    "BouncyCastle.Crypto.dll",
+    "EntityFramework.dll",
+    "EntityFramework.SqlServer.dll",
+    "ICSharpCode.SharpZipLib.dll",
+    "Newtonsoft.Json.dll",
+    "NPOI.dll",
+    "Npoi.Mapper.dll",
+    "NPOI.OOXML.dll",
+    "NPOI.OpenXml4Net.dll",
+    "NPOI.OpenXmlFormats.dll",
+    "Project1.UI.dll",
+    "ProjectEye.exe",
+    "ProjectEye.MediaControl.dll",
+    "ProjectEyeBug.exe",
+    "SQLite.CodeFirst.dll",
+    "System.Data.SQLite.dll",
+    "System.Data.SQLite.EF6.dll",
+    "System.Data.SQLite.Linq.dll",
+    "WpfAnimatedGif.dll",
+    "x64/SQLite.Interop.dll",
+    "x86/SQLite.Interop.dll"
+  ],
+  "retiredFiles": [
+    "README.md",
+    "CHANGELOG.md",
+    "licenses/.gitattributes",
+    "Remove-TestVersion.ps1"
   ]
 }

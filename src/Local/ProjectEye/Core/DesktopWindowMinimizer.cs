@@ -85,6 +85,35 @@ namespace ProjectEye.Core
             this.onlyWindows = onlyWindows == null ? null : new HashSet<IntPtr>(onlyWindows);
             this.excludedWindows = new HashSet<IntPtr>(excludedWindows ?? new IntPtr[0]);
         }
+        private bool IsCandidate(IntPtr window)
+        {
+            if (excludedWindows.Contains(window) || (onlyWindows != null && !onlyWindows.Contains(window))) return false;
+            if (!IsWindow(window) || !IsWindowVisible(window) || IsIconic(window)) return false;
+            uint process; GetWindowThreadProcessId(window, out process);
+            if (process == 0 || excludedProcesses.Contains(process)) return false;
+            int style = GetWindowLong(window, -16), extended = GetWindowLong(window, -20);
+            if (style == 0) return false;
+            // WS_EX_TOPMOST, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE. Caption bits
+            // cannot identify visual borders: Tauri can retain WS_CAPTION.
+            if ((extended & (0x8 | 0x80 | 0x08000000)) != 0) return false;
+            if (GetWindow(window, 4) != IntPtr.Zero && (extended & 0x40000) == 0) return false;
+            // Avoid Process.ProcessName: its legacy implementation may enumerate
+            // system process information and consume the entire 200ms budget.
+            IntPtr owner = OpenProcess(0x1000, false, process);
+            if (owner == IntPtr.Zero) return false;
+            try
+            {
+                var path = new StringBuilder(1024); int length = path.Capacity;
+                if (!QueryFullProcessImageName(owner, 0, path, ref length)) return false;
+                if (string.Equals(System.IO.Path.GetFileName(path.ToString()), "opencodex-monitor.exe", StringComparison.OrdinalIgnoreCase)) return false;
+            }
+            finally { CloseHandle(owner); }
+            var name = new StringBuilder(256);
+            if (GetClassName(window, name, name.Capacity) == 0) return false;
+            if (new[] { "Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd" }.Contains(name.ToString())) return false;
+            int cloaked;
+            return DwmGetWindowAttribute(window, 14, out cloaked, sizeof(int)) == 0 && cloaked == 0;
+        }
         public IReadOnlyList<IntPtr> Enumerate(CancellationToken token)
         {
             var windows = new List<IntPtr>();
@@ -95,18 +124,7 @@ namespace ProjectEye.Core
                 int skipped = 0;
                 bool enumerated = EnumWindows((window, value) => {
                     if (token.IsCancellationRequested) return false;
-                    if (onlyWindows != null && !onlyWindows.Contains(window)) return true;
-                    if (excludedWindows.Contains(window)) return true;
-                    uint process; GetWindowThreadProcessId(window, out process);
-                    if (excludedProcesses.Contains(process) || !IsWindowVisible(window) || IsIconic(window)) return true;
-                    if ((GetWindowLong(window, -20) & 0x80) != 0) return true;
-                    // Borderless topmost widgets and edge-docked panels manage their own visibility.
-                    if ((GetWindowLong(window, -20) & 0x8) != 0 && (GetWindowLong(window, -16) & 0xC00000) == 0) return true;
-                    var name = new StringBuilder(256); GetClassName(window, name, name.Capacity);
-                    if (new[] { "Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd" }.Contains(name.ToString())) return true;
-                    int cloaked;
-                    if (DwmGetWindowAttribute(window, 14, out cloaked, sizeof(int)) != 0) { skipped++; return true; }
-                    if (cloaked != 0) return true;
+                    if (!IsCandidate(window)) return true;
                     bool current;
                     if (desktops.IsWindowOnCurrentVirtualDesktop(window, out current) < 0) { skipped++; return true; }
                     if (!current) return true;
@@ -122,10 +140,10 @@ namespace ProjectEye.Core
         {
             uint process; GetWindowThreadProcessId(window, out process);
             if (excludedProcesses.Contains(process) || excludedWindows.Contains(window) || (onlyWindows != null && !onlyWindows.Contains(window))) return false;
-            if (!IsWindow(window) || !IsWindowVisible(window) || IsIconic(window)) return true;
+            if (!IsCandidate(window)) return true;
             return ShowWindowAsync(window, 6);
         }
-        public bool IsMinimizedOrGone(IntPtr window) { return !IsWindow(window) || !IsWindowVisible(window) || IsIconic(window); }
+        public bool IsMinimizedOrGone(IntPtr window) { return !IsCandidate(window); }
         private delegate bool EnumProc(IntPtr window, IntPtr value);
         [DllImport("user32.dll")] private static extern bool EnumWindows(EnumProc callback, IntPtr value);
         [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
@@ -134,6 +152,10 @@ namespace ProjectEye.Core
         [DllImport("user32.dll")] private static extern bool ShowWindowAsync(IntPtr window, int command);
         [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
         [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr window, int index);
+        [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr window, uint command);
+        [DllImport("kernel32.dll")] private static extern IntPtr OpenProcess(uint access, bool inherit, uint process);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder path, ref int size);
+        [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr window, StringBuilder text, int length);
         [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
         [ComImport, Guid("AA509086-5CA9-4C25-8F95-589D3C07B48A")] private class VirtualDesktopManager { }

@@ -43,22 +43,24 @@ try {
     $result.buildSeconds = $clock.Elapsed.TotalSeconds
     $payload = Join-Path $run ('ProjectEye-Enhanced-' + $releaseProfile.version)
     New-Item -ItemType Directory -Path $payload | Out-Null
-    foreach ($file in Get-ChildItem -LiteralPath $build.outputDirectory -File -Recurse) {
-        if ($file.Name -eq 'ProjectEyeUp.exe' -or $file.Extension -notin @('.exe','.dll','.config')) { continue }
-        $relative = [IO.Path]::GetRelativePath($build.outputDirectory, $file.FullName)
-        if ($relative -match '(^|[\\/])(Data|Log|Update)([\\/])') { throw 'Runtime data must not be packaged.' }
+    foreach ($relative in $releaseProfile.runtimeFiles) {
+        if ([IO.Path]::IsPathRooted($relative) -or $relative -match '(^|[\\/])\.\.([\\/]|$)') { throw 'Invalid runtime allowlist path.' }
+        $file = Join-Path $build.outputDirectory $relative
+        if (!(Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing allowed runtime file: $relative" }
         $target = Join-Path $payload $relative
         New-Item -ItemType Directory -Path (Split-Path $target) -Force | Out-Null
-        Copy-Item -LiteralPath $file.FullName -Destination $target
+        Copy-Item -LiteralPath $file -Destination $target
     }
     foreach ($file in @($releaseProfile.requiredFiles | Where-Object { $_ -ne 'ProjectEye.Maintenance.exe' })) { if (!(Test-Path -LiteralPath (Join-Path $payload $file))) { throw "Missing payload: $file" } }
     $version = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $payload 'ProjectEye.exe')).ProductVersion
     if ($version -ne $releaseProfile.version) { throw "Wrong product version: $version" }
     Copy-Item -LiteralPath (Join-Path $repo 'LICENSE') -Destination $payload
-    Copy-Item -LiteralPath (Join-Path $repo 'docs/TEST-VERSION.md') -Destination (Join-Path $payload 'README.md')
-    Copy-Item -LiteralPath (Join-Path $repo 'CHANGELOG.md') -Destination $payload
+    Copy-Item -LiteralPath (Join-Path $repo 'docs/TEST-VERSION.md') -Destination (Join-Path $run '使用说明.md')
+    Copy-Item -LiteralPath (Join-Path $repo 'CHANGELOG.md') -Destination $run
     Copy-Item -LiteralPath (Join-Path $repo 'packaging/THIRD-PARTY-NOTICES.md') -Destination $payload
-    Copy-Item -LiteralPath (Join-Path $repo 'packaging/licenses') -Destination (Join-Path $payload 'licenses') -Recurse
+    $licenses = Join-Path $payload 'licenses'
+    New-Item -ItemType Directory -Path $licenses | Out-Null
+    Get-ChildItem -LiteralPath (Join-Path $repo 'packaging/licenses') -Filter '*.txt' -File | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $licenses }
     Write-Json (Join-Path $payload 'test-package.json') @{product='ProjectEye Enhanced'; version=$releaseProfile.version; sourceCommit=$planRecord.sourceCommit; inputFingerprint=$fingerprint; signed=$false}
     $trusted = @(Get-ChildItem -LiteralPath $payload -File -Recurse | ForEach-Object {
         [ordered]@{ path=[IO.Path]::GetRelativePath($payload,$_.FullName); bytes=$_.Length; sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash }
@@ -71,7 +73,7 @@ try {
     $identity = Join-Path $maintenance 'BuildIdentity.cs'
     $identityText = '[assembly:System.Reflection.AssemblyFileVersion("1.0.0.' + ($releaseProfile.version -replace '^.*beta\.','') + '")]' + "`n" +
         '[assembly:System.Reflection.AssemblyInformationalVersion("' + $releaseProfile.version + '")]' + "`n" +
-        'internal static class BuildIdentity { internal const string Version="' + $releaseProfile.version + '"; internal const string TrustedJson=@"' + $trustedJson.Replace('"','""') + '"; internal static readonly string[] LegacyManifestHashes=new[]{' + (($legacy | ForEach-Object { '"'+$_+'"' }) -join ',') + '}; internal static readonly string[] LegacyMaintenanceHashes=new[]{' + (($releaseProfile.legacyMaintenanceHashes | ForEach-Object { '"'+$_+'"' }) -join ',') + '}; }'
+        'internal static class BuildIdentity { internal const string Version="' + $releaseProfile.version + '"; internal const string TrustedJson=@"' + $trustedJson.Replace('"','""') + '"; internal static readonly string[] LegacyManifestHashes=new[]{' + (($legacy | ForEach-Object { '"'+$_+'"' }) -join ',') + '}; internal static readonly string[] LegacyMaintenanceHashes=new[]{' + (($releaseProfile.legacyMaintenanceHashes | ForEach-Object { '"'+$_+'"' }) -join ',') + '}; internal static readonly string[] RetiredFiles=new[]{' + (($releaseProfile.retiredFiles | ForEach-Object { '"'+$_.Replace('/','\\')+'"' }) -join ',') + '}; }'
     [IO.File]::WriteAllText($identity,$identityText,$utf8)
     $compiler = $build.msbuild
     $maintenanceEvidence = Join-Path $run 'maintenance'
@@ -79,6 +81,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Maintenance build failed.' }
     Copy-Item -LiteralPath (Join-Path $maintenanceEvidence 'bin/ProjectEye.Maintenance.exe') -Destination $payload
     $result.maintenanceSha256 = (Get-FileHash -LiteralPath (Join-Path $payload 'ProjectEye.Maintenance.exe') -Algorithm SHA256).Hash
+    foreach ($forbidden in @('README.md','CHANGELOG.md','licenses/.gitattributes','Remove-TestVersion.ps1')) { if (Test-Path -LiteralPath (Join-Path $payload $forbidden)) { throw "Forbidden payload file: $forbidden" } }
     $manifest = @(Get-ChildItem -LiteralPath $payload -File -Recurse | ForEach-Object {
         [ordered]@{path=[IO.Path]::GetRelativePath($payload,$_.FullName); bytes=$_.Length; sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}
     })

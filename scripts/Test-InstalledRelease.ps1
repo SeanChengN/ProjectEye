@@ -84,7 +84,7 @@ try{
     Setup 'fresh-install'
     $key=Get-ItemProperty ('HKCU:\'+$registry+'ProjectEyeEnhanced-Test')
     Assert ($key.UninstallString-eq('"'+(Join-Path $root 'uninstall/unins000.exe')+'"')) 'Own Inno EXE registered without generic host'
-    $locked=[IO.File]::Open((Join-Path $root 'README.md'),'Open','Read','None')
+    $locked=[IO.File]::Open((Join-Path $root 'LICENSE'),'Open','Read','None')
     try{
         $p=Start-Process -FilePath (Join-Path $root 'uninstall/unins000.exe') -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/LOG="'+(Join-Path $run 'locked-uninstall.log')+'"')) -WindowStyle Hidden -PassThru -Wait
         Assert ($p.ExitCode-ne0) 'Real uninstall reports failure while file locked'
@@ -103,7 +103,7 @@ try{
     [IO.File]::WriteAllText((Join-Path $root 'Log/test.log'),'log',$utf8)
     [IO.File]::WriteAllText((Join-Path $root 'user-file.txt'),'preserve me',$utf8)
     $dataBefore=TreeHash (Join-Path $root 'Data')
-    Setup 'beta2-upgrade';Setup 'repeat-beta4'
+    Setup 'beta2-upgrade';Setup 'repeat-current'
     Assert (($dataBefore|ConvertTo-Json -Compress)-eq((TreeHash (Join-Path $root 'Data'))|ConvertTo-Json -Compress)) 'Real setup preserves configuration and statistics'
     Assert (!(Test-Path (Join-Path $root 'Remove-TestVersion.ps1'))) 'Real upgrade removes old host script'
     Uninstall 'upgraded-uninstall'
@@ -116,6 +116,17 @@ try{
     Setup 'beta3-upgrade'
     Assert ((Get-FileHash (Join-Path $root 'Data/config.xml')).Hash-eq$hash3) 'Beta.3 upgrade retains configuration'
     Uninstall 'beta3-upgraded-uninstall'
+    $legacy4=Join-Path $repo 'artifacts/test-release/20261117-112632-008-1.0.0-beta.4/ProjectEye-Enhanced-1.0.0-beta.4'
+    New-Item -ItemType Directory -Path $root -Force|Out-Null
+    Copy-Item -Path (Join-Path $legacy4 '*') -Destination $root -Recurse -Force
+    New-Item -ItemType Directory -Path (Join-Path $root 'Data')|Out-Null
+    [IO.File]::WriteAllText((Join-Path $root 'Data/config.xml'),'<Options>beta4</Options>',$utf8)
+    $hash4=(Get-FileHash (Join-Path $root 'Data/config.xml')).Hash
+    Setup 'beta4-upgrade'
+    Assert ((Get-FileHash (Join-Path $root 'Data/config.xml')).Hash-eq$hash4) 'Beta.4 upgrade retains configuration'
+    Assert (!(Test-Path (Join-Path $root 'README.md'))-and!(Test-Path (Join-Path $root 'CHANGELOG.md'))-and!(Test-Path (Join-Path $root 'licenses/.gitattributes'))) 'Upgrade retires only trusted obsolete documents'
+    Assert (Test-Path (Join-Path $root 'LICENSE')) 'Required copyright notice retained'
+    Uninstall 'beta4-upgraded-uninstall'
     $after=State;Json (Join-Path $run 'protected-after.json') $after
     Assert (($before|ConvertTo-Json -Depth 30 -Compress)-eq($after|ConvertTo-Json -Depth 30 -Compress)) 'System PowerShell files/registrations and actual beta.2 install/links untouched'
     Json (Join-Path $run 'result.json') @{success=$true;candidate=$Candidate;checks=$checks;deepHiBit='NOT TESTED';scope='Identical Inno and maintenance source compiled with isolated product/registry constants; real install/uninstall in Chinese directory, actual user installation preserved'}

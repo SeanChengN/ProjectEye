@@ -25,3 +25,5 @@
 - Safe beta.3 maintenance and upgrade: [contract, rollback and verification](docs/BETA3-MAINTENANCE.md). Version source is packaging/test-release.json. Never run the legacy PowerShell uninstaller or HiBit deep cleanup on the host; test real setup only against an explicit isolated directory.
 
 - beta.4 maintenance: [contract](docs/BETA4-MAINTENANCE.md). Uninstall recycles the entire dedicated app directory, including data and unknown files, plus verified same-install recovery history. In-place upgrades preserve data; do not apply obsolete beta.3 retention defaults.
+
+- beta.5 window protection and lean payload: [contract](docs/BETA5-WINDOW-PROTECTION.md). Preserve all topmost windows and all OpenCodex Monitor windows; revalidate before sending minimize. Runtime files use the release profile allowlist; README/CHANGELOG stay outside archives/install payload, required licenses stay inside.

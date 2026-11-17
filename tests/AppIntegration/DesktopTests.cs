@@ -48,6 +48,7 @@ internal static class DesktopTests
         result = await new DesktopWindowMinimizer(rejected).MinimizeAsync();
         check(result.Failed == 1, "rejected window reported");
         await Native(check);
+        ReadOnlyMonitor(check);
         await HungWindow(check);
         config.options.Behavior.MinimizeWindowsAfterRest = true;
         check(config.Save(), "desktop setting saves"); config.Init();
@@ -57,6 +58,19 @@ internal static class DesktopTests
         rest.Start(); rest.Shutdown();
         check(!rest.IsResting && fake.Enumerations == beforeExit, "exit does not enumerate windows");
         config.options.Behavior.MinimizeWindowsAfterRest = false; config.Save();
+    }
+    private static void ReadOnlyMonitor(Action<bool,string> check)
+    {
+        var processes=Process.GetProcessesByName("opencodex-monitor");
+        var ids=new HashSet<uint>(processes.Select(p=>(uint)p.Id));
+        foreach(var process in processes)process.Dispose();
+        var handles=new List<IntPtr>();
+        EnumWindows((window,value)=>{uint pid;GetWindowThreadProcessId(window,out pid);if(ids.Contains(pid))handles.Add(window);return true;},IntPtr.Zero);
+        if(handles.Count==0){Console.WriteLine("SKIP real Monitor read-only eligibility: no windows");return;}
+        var backend=new NativeDesktopWindowBackend(new uint[0],handles);
+        // This test enumerates only; never call Minimize on a user's window.
+        check(backend.Enumerate(CancellationToken.None).Count==0,"actual Monitor windows excluded by read-only enumeration");
+        Console.WriteLine("Monitor read-only handles={0}; commands=0",handles.Count);
     }
     private static async Task Native(Action<bool,string> check)
     {
@@ -74,15 +88,33 @@ internal static class DesktopTests
             var hidden = new Window { Title="ProjectEye hidden fixture", Width=240, Height=120 }; hidden.Show(); hidden.Hide(); windows.Add(hidden);
             var mask = new Window { Title="ProjectEye mask fixture", Width=240, Height=120, Topmost=true }; mask.Show(); windows.Add(mask);
             var dock = new Window { Title="ProjectEye dock fixture", Width=240, Height=120, Topmost=true, WindowStyle=WindowStyle.None, ShowInTaskbar=false }; dock.Show(); windows.Add(dock);
+            // Real Tauri windows can retain WS_CAPTION while visually borderless.
+            var captionedTopmost = new Window { Title="ProjectEye caption topmost fixture", Width=240, Height=120, Topmost=true }; captionedTopmost.Show(); windows.Add(captionedTopmost);
+            var noTaskbar = new Window { Title="ProjectEye no taskbar fixture", Width=240, Height=120, ShowInTaskbar=false }; noTaskbar.Show(); windows.Add(noTaskbar);
+            var noActivate = new Window { Title="ProjectEye no activate fixture", Width=240, Height=120, ShowActivated=false }; noActivate.Show(); windows.Add(noActivate);
+            var noActivateHandle=new WindowInteropHelper(noActivate).Handle;
+            SetWindowLong(noActivateHandle,-20,GetWindowLong(noActivateHandle,-20)|0x08000000);
+            var race = new Window { Title="ProjectEye state race fixture", Width=240, Height=120 }; race.Show(); windows.Add(race);
             await Task.Delay(80);
             var candidates = windows.Where(w=>w!=mask).Select(w=>new WindowInteropHelper(w).Handle).ToArray();
             var backend = new NativeDesktopWindowBackend(new uint[0],candidates,new[]{new WindowInteropHelper(mask).Handle});
             var found = backend.Enumerate(CancellationToken.None);
-            check(found.Count == screens.Length+1, "native enumeration excludes hidden and minimized fixtures on all screens");
+            check(found.Count == screens.Length+2, "native enumeration excludes protected fixtures on all screens");
+            var raceHandle=new WindowInteropHelper(race).Handle;
+            check(found.Contains(raceHandle),"ordinary fixture initially eligible");
+            race.Topmost=true;await Task.Delay(20);
+            check(backend.Minimize(raceHandle),"changed topmost state safely skipped before command");
             var result = await new DesktopWindowMinimizer(backend).MinimizeAsync();
             await Task.Delay(50);
-            check(result.Failed==0 && windows.Where(w=>w!=mask&&w!=hidden&&w!=dock).All(w=>w.WindowState==WindowState.Minimized), "native normal and maximized fixtures minimized");
+            Console.WriteLine("Native result={0} attempted={1} failed={2}; states={3}",result.Code,result.Attempted,result.Failed,string.Join(",",windows.Select(w=>w.Title+":"+w.WindowState)));
+            check(result.Failed==0 && windows.Where(w=>w!=mask&&w!=hidden&&w!=dock&&w!=captionedTopmost&&w!=noTaskbar&&w!=noActivate&&w!=race).All(w=>w.WindowState==WindowState.Minimized), "native normal and maximized fixtures minimized");
             check(dock.IsVisible && dock.WindowState==WindowState.Normal,"borderless topmost dock retains its visibility state");
+            check(captionedTopmost.IsVisible&&captionedTopmost.WindowState==WindowState.Normal,"captioned topmost window never minimized");
+            check(noTaskbar.IsVisible&&noTaskbar.WindowState==WindowState.Normal&&!noTaskbar.ShowInTaskbar,"non-taskbar window remains absent from taskbar");
+            check(noActivate.IsVisible&&noActivate.WindowState==WindowState.Normal,"no-activate window remains untouched");
+            check(race.WindowState==WindowState.Normal&&race.Topmost,"late topmost transition preserved");
+            hidden.Show();await Task.Delay(10);hidden.Hide();
+            check(backend.Minimize(new WindowInteropHelper(hidden).Handle)&&!hidden.IsVisible,"late hidden state never shown by minimize");
             check(mask.WindowState==WindowState.Normal && mask.IsVisible, "mask fixture remains visible");
             await Task.Delay(100);
             check(maximized.WindowState==WindowState.Minimized, "native windows not automatically restored");
@@ -117,6 +149,11 @@ internal static class DesktopTests
         finally { block.Set(); }
     }
     [DllImport("user32.dll",CharSet=CharSet.Unicode)] private static extern IntPtr FindWindow(string className,string title);
+    private delegate bool WindowCallback(IntPtr window,IntPtr value);
+    [DllImport("user32.dll")] private static extern bool EnumWindows(WindowCallback callback,IntPtr value);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window,out uint process);
+    [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr window,int index);
+    [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr window,int index,int value);
     private sealed class Fake : IDesktopWindowBackend
     {
         public int Enumerations, Commands, Delay; public bool Throw, Reject;

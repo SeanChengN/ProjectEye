@@ -111,7 +111,7 @@ internal static class Engine
         var marker=Read<Marker>(Child(root,"test-package.json"));
         if(marker.product!="ProjectEye Enhanced")throw new IOException("Unrecognized installation.");
         if(marker.version==BuildIdentity.Version){VerifyInstalled(root,!recovery);return;}
-        if(marker.version!="1.0.0-beta.1"&&marker.version!="1.0.0-beta.2"&&marker.version!="1.0.0-beta.3")throw new IOException("Unsupported installed version.");
+        if(marker.version!="1.0.0-beta.1"&&marker.version!="1.0.0-beta.2"&&marker.version!="1.0.0-beta.3"&&marker.version!="1.0.0-beta.4")throw new IOException("Unsupported installed version.");
         string hash=Hash(Child(root,"payload-manifest.json"));
         if(!BuildIdentity.LegacyManifestHashes.Contains(hash))throw new IOException("Legacy manifest is not a known local release.");
         var manifest=Read<Entry[]>(Child(root,"payload-manifest.json"));
@@ -243,10 +243,13 @@ internal static class Engine
                 if(failAt=="copy")throw new IOException("Injected copy failure for recovery acceptance.");
             }
             VerifyInstalled(target);
-            var oldScript=Path.Combine(target,"Remove-TestVersion.ps1");
             var previousManifest=Path.Combine(backupFiles,"payload-manifest.json");
-            if(File.Exists(oldScript)&&File.Exists(previousManifest)&&Read<Entry[]>(previousManifest).Any(e=>e.path.Equals("Remove-TestVersion.ps1",StringComparison.OrdinalIgnoreCase)&&Hash(oldScript)==e.sha256))
-            {tx.Retired.Add(tx.Before.Single(e=>e.path.Equals("Remove-TestVersion.ps1",StringComparison.OrdinalIgnoreCase)));Write(Path.Combine(tx.Backup,"transaction.json"),tx);Recycle(oldScript);}
+            foreach(string retired in BuildIdentity.RetiredFiles)
+            {
+                string oldFile=Child(target,retired);
+                if(File.Exists(oldFile)&&File.Exists(previousManifest)&&Read<Entry[]>(previousManifest).Any(e=>e.path.Equals(retired,StringComparison.OrdinalIgnoreCase)&&Hash(oldFile)==e.sha256))
+                {tx.Retired.Add(tx.Before.Single(e=>e.path.Equals(retired,StringComparison.OrdinalIgnoreCase)));Write(Path.Combine(tx.Backup,"transaction.json"),tx);Recycle(oldFile);}
+            }
             Register(target,before);ChangeLinks(target,tx.Links,false,()=>Write(Path.Combine(tx.Backup,"transaction.json"),tx));
             if(failAt=="registration")throw new IOException("Injected registration failure for recovery acceptance.");
             tx.State="Committed";Write(Path.Combine(tx.Backup,"transaction.json"),tx);
@@ -270,7 +273,7 @@ internal static class Engine
             if(!allowed.Any(a=>a.path==entry.path&&a.sha256==entry.sha256&&a.bytes==entry.bytes))throw new IOException("Untrusted rollback payload.");
         string savedFiles=Path.Combine(directory,"files");NoLinks(savedFiles);
         if(tx.Before.Any(e=>e.path=="test-package.json"))VerifyExisting(savedFiles,true);
-        if(tx.Retired.Any(e=>e.path!="Remove-TestVersion.ps1"||!tx.Before.Any(b=>b.path==e.path&&b.sha256==e.sha256)))throw new IOException("Untrusted retired payload.");
+        if(tx.Retired.Any(e=>!BuildIdentity.RetiredFiles.Contains(e.path,StringComparer.OrdinalIgnoreCase)||!tx.Before.Any(b=>b.path==e.path&&b.sha256==e.sha256)))throw new IOException("Untrusted retired payload.");
         foreach(var entry in tx.Before)if(Hash(Child(savedFiles,entry.path))!=entry.sha256)throw new IOException("Backup changed.");
         foreach(var entry in tx.Written)
         {

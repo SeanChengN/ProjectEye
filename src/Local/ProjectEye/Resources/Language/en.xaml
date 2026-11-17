@@ -223,6 +223,6 @@
     <sys:String x:Key="Lang_MediaLogging">Enable media control logs</sys:String>
     <sys:String x:Key="Lang_MediaPrivacy">Only players supporting Windows system media control are supported. Logs stay on this device and omit media titles and artists. No data is uploaded.</sys:String>
     <sys:String x:Key="Lang_DesktopMinimize">Minimize other windows when a break ends</sys:String>
-    <sys:String x:Key="Lang_DesktopMinimizeHint">Applies only after a break starts. Windows stay minimized after completion, skip or cancellation. Skipping the initial prompt has no effect. Media settings are unchanged. Some windows may resist minimization.</sys:String>
+    <sys:String x:Key="Lang_DesktopMinimizeHint">Applies after a break has started; windows stay minimized after finish, skip or cancel. Skipping the initial reminder does nothing. Always-on-top, tool and self-managed dock windows stay unchanged. Media follows its settings. Some windows may refuse to minimize.</sys:String>
     <sys:String x:Key="Lang_DesktopMinimizeFailed">Some windows could not be minimized.</sys:String>
 </ResourceDictionary>
