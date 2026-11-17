@@ -20,3 +20,7 @@ Existing NuGet versions are preserved. License declarations were checked against
 Fody 5.0.6 (MIT) is a build tool, not a distributed application dependency. Project1.UI and ProjectEyeBug originate in the upstream project. Original artwork/resources are retained under the upstream repository's distribution; a separate asset-by-asset provenance audit remains a formal-release task.
 
 This package is for local testing. Source license notices do not establish that every dependency has passed a security audit; Newtonsoft.Json 12.0.2 has an outstanding high-severity advisory (GHSA-5crp-9r3c-p9vr).
+
+## 安装器简体中文翻译
+
+ChineseSimplified-6.2.2.isl为本机构建工具所用Inno Setup 6.2.2匹配翻译，保留文件头作者与来源：https://github.com/kira-96/Inno-Setup-Chinese-Simplified-Translation 。从本地既有版本复制并固定随仓库，编译时不联网获取。

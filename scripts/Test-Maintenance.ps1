@@ -72,7 +72,7 @@ try{
     Assert ((Get-Content (Join-Path $root 'test-package.json') -Raw|ConvertFrom-Json).version-eq'1.0.0-beta.2') 'Failed legacy upgrade restores old payload'
     $restored=ViewKey Registry64 ($keyRoot+'ProjectEyeEnhanced-beta2');Assert ($restored.GetValue('UninstallString')-eq'NEVER EXECUTE THIS OLD HOST') 'Failed legacy upgrade restores registration';$restored.Dispose()
     $upgrade=Invoke-Tool @('--install','--source',$source,'--target',$root)
-    Assert (((Get-Content (Join-Path $root 'test-package.json') -Raw|ConvertFrom-Json).version)-eq'1.0.0-beta.3') 'Beta.2 in-place upgrade'
+    Assert (((Get-Content (Join-Path $root 'test-package.json') -Raw|ConvertFrom-Json).version)-eq$release.version) 'Beta.2 in-place upgrade'
     Assert (!(Test-Path (Join-Path $root 'Remove-TestVersion.ps1'))) 'Legacy PS1 removed from installation'
     foreach($view in @('Registry32','Registry64')){$key=ViewKey $view ($keyRoot+'ProjectEyeEnhanced-beta2');Assert ($null-eq$key) "Old same-path registration migrated ($view)"}
     Assert ((@(Get-ChildItem (Join-Path $root 'Data') -File|Get-FileHash|Select-Object -ExpandProperty Hash)-join',')-eq($dataHashes-join',')) 'Config and statistics unchanged after upgrade'
@@ -83,21 +83,29 @@ try{
         Invoke-Tool @('--check') -Executable (Join-Path $root 'ProjectEye.Maintenance.exe')|Out-Null
     }
     $mutex=[Threading.Mutex]::new($true,'projecteye-enhanced')
-    try{Invoke-Tool @('--uninstall') -Executable (Join-Path $root 'ProjectEye.Maintenance.exe') -Failure|Out-Null}finally{$mutex.ReleaseMutex();$mutex.Dispose()}
+    try{Invoke-Tool @('--check-uninstall','--target',$root) -Failure|Out-Null}finally{$mutex.ReleaseMutex();$mutex.Dispose()}
     Assert $true 'Running application mutex blocks maintenance'
     $exe=Join-Path $root 'ProjectEye.exe';$original=[IO.File]::ReadAllBytes($exe);[IO.File]::WriteAllText($exe,'modified',$utf8)
-    try{Invoke-Tool @('--uninstall') -Executable (Join-Path $root 'ProjectEye.Maintenance.exe') -Failure|Out-Null}finally{[IO.File]::WriteAllBytes($exe,$original)}
+    try{Invoke-Tool @('--check-uninstall','--target',$root) -Failure|Out-Null}finally{[IO.File]::WriteAllBytes($exe,$original)}
     Assert $true 'Modified payload blocks uninstall'
     $junction=Join-Path $root 'external-link';New-Item -ItemType Junction -Path $junction -Target $fake|Out-Null
     Invoke-Tool @('--install','--source',$source,'--target',$root) -Failure|Out-Null;Assert $true 'Reparse subtree blocks upgrade before mutation'
     # Move the junction itself, never recursively enumerate or remove its target.
     $recycle=Join-Path $repo ('.recycle-bin/maintenance-tests/'+[guid]::NewGuid().ToString('N'));New-Item -ItemType Directory -Path $recycle|Out-Null
     Move-Item -LiteralPath $junction -Destination (Join-Path $recycle 'external-link')
-    $removed=Invoke-Tool @('--uninstall') -Executable (Join-Path $root 'ProjectEye.Maintenance.exe') -Handoff
-    Assert (!(Test-Path (Join-Path $root 'ProjectEye.Maintenance.exe'))-and!(Test-Path (Join-Path $root 'ProjectEye.exe'))) 'Own helper completes self-removal'
-    Assert (Test-Path (Join-Path $root 'my-notes.txt')) 'Unknown user file preserved on uninstall'
-    Assert ((@(Get-ChildItem (Join-Path $removed.recovery 'Data') -File|Get-FileHash|Select-Object -ExpandProperty Hash)-join',')-eq($dataHashes-join',')) 'Uninstall retains config and statistics by hash'
-    Assert (Test-Path (Join-Path $removed.recovery 'Log/test.log')) 'Uninstall retains logs outside application'
+    $foreign=Join-Path $env:LOCALAPPDATA ('ProjectEyeEnhanced-Recovery/foreign-test-'+[guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $foreign|Out-Null
+    Json (Join-Path $foreign 'original-location.json') @{path=(Join-Path $run 'other-install')}
+    [IO.File]::WriteAllText((Join-Path $foreign 'foreign.txt'),'other installation',$utf8)
+    $locked=[IO.File]::Open((Join-Path $root 'Data/statistics.db'),'Open','ReadWrite','None')
+    try{$failure=Invoke-Tool @('--remove','--target',$root) -Failure;Assert ($failure.code-eq'E_LOCKED') 'Locked file returns stable Chinese failure'}finally{$locked.Dispose()}
+    Assert (Test-Path (Join-Path $root 'ProjectEye.exe')) 'Lock refusal leaves installation intact'
+    $removed=Invoke-Tool @('--remove','--target',$root)
+    Assert (!(Test-Path -LiteralPath $root)) 'Whole application directory recycled'
+    Assert (!(Test-Path -LiteralPath $upgrade.recovery)) 'Verified same-install upgrade backup recycled'
+    Assert (Test-Path (Join-Path $foreign 'foreign.txt')) 'Other recovery directory preserved'
+    Add-Type -AssemblyName Microsoft.VisualBasic
+    [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($foreign,'OnlyErrorDialogs','SendToRecycleBin')
     $key=ViewKey Registry64 $stable;Assert ($null-eq$key) 'Only own test registration removed'
     Json (Join-Path $run 'result.json') @{success=$true;checks=$checks;candidate=$Candidate;scope='Compiled identical engine with isolated registry/shortcut constants; production installer verified separately'}
 }finally{Write-Output "MAINTENANCE_EVIDENCE=$run"}

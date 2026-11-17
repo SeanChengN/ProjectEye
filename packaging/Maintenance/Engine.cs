@@ -12,7 +12,6 @@ using Microsoft.VisualBasic.FileIO;
 
 internal sealed class Entry { public string path; public long bytes; public string sha256; }
 internal sealed class Marker { public string product; public string version; }
-internal sealed class Ticket { public string Root; public int ParentId; public string HelperHash; public string ResultPath; public bool Quiet; public string Nonce; }
 internal sealed class RegValue { public string Name; public object Value; public string Kind; }
 internal sealed class RegSnapshot { public string View; public string Name; public bool Exists; public RegValue[] Values; }
 internal sealed class LinkSnapshot { public string Path; public string Backup; public bool Existed; public string BeforeHash; public string AfterHash; public bool Changed; }
@@ -39,8 +38,12 @@ internal static class Engine
     internal static T Read<T>(string path) { return new JavaScriptSerializer {MaxJsonLength=64*1024*1024}.Deserialize<T>(File.ReadAllText(path,Utf8)); }
     internal static void Write(string path,object value)
     { File.WriteAllText(path,new JavaScriptSerializer {MaxJsonLength=64*1024*1024}.Serialize(value),Utf8); }
-    internal static void Result(string path,bool success,string message,string recovery)
-    { if(!string.IsNullOrEmpty(path))Write(path,new {success=success,message=message,recovery=recovery,utc=DateTime.UtcNow.ToString("o")}); }
+    internal static void Result(string path,bool success,string message,string recovery,string code="OK")
+    {
+        if(string.IsNullOrEmpty(path))return;
+        Write(path,new {success=success,code=code,message=message,recovery=recovery,utc=DateTime.UtcNow.ToString("o")});
+        File.WriteAllText(path+".txt",message,Utf8);
+    }
     internal static string Hash(string path)
     { using(var input=File.OpenRead(path))using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(input)).Replace("-",""); }
     internal static string NewRecovery(string purpose)
@@ -108,7 +111,7 @@ internal static class Engine
         var marker=Read<Marker>(Child(root,"test-package.json"));
         if(marker.product!="ProjectEye Enhanced")throw new IOException("Unrecognized installation.");
         if(marker.version==BuildIdentity.Version){VerifyInstalled(root,!recovery);return;}
-        if(marker.version!="1.0.0-beta.1"&&marker.version!="1.0.0-beta.2")throw new IOException("Unsupported installed version.");
+        if(marker.version!="1.0.0-beta.1"&&marker.version!="1.0.0-beta.2"&&marker.version!="1.0.0-beta.3")throw new IOException("Unsupported installed version.");
         string hash=Hash(Child(root,"payload-manifest.json"));
         if(!BuildIdentity.LegacyManifestHashes.Contains(hash))throw new IOException("Legacy manifest is not a known local release.");
         var manifest=Read<Entry[]>(Child(root,"payload-manifest.json"));
@@ -143,10 +146,11 @@ internal static class Engine
         }
         using(var baseKey=RegistryKey.OpenBaseKey(RegistryHive.CurrentUser,RegistryView.Registry64))using(var key=baseKey.CreateSubKey(KeyRoot+Keys[0]))
         {
-            string command=Quote(Path.Combine(root,"ProjectEye.Maintenance.exe"))+" --uninstall";
+            string nativeUninstaller=Path.Combine(root,"uninstall","unins000.exe");
+            string command=File.Exists(nativeUninstaller)?Quote(nativeUninstaller):Quote(Path.Combine(root,"ProjectEye.Maintenance.exe"))+" --uninstall";
             key.SetValue("DisplayName","ProjectEye Enhanced "+BuildIdentity.Version);key.SetValue("DisplayVersion",BuildIdentity.Version);
             key.SetValue("InstallLocation",root);key.SetValue("DisplayIcon",Path.Combine(root,"ProjectEye.exe"));
-            key.SetValue("UninstallString",command);key.SetValue("QuietUninstallString",command+" --quiet");key.SetValue("NoModify",1);key.SetValue("NoRepair",1);
+            key.SetValue("UninstallString",command);key.SetValue("QuietUninstallString",command+(File.Exists(nativeUninstaller)?" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART":" --quiet"));key.SetValue("NoModify",1);key.SetValue("NoRepair",1);
         }
         // HKCU views can alias: never delete the stable key after creating it.
         foreach(var item in before.Where(s=>RegisteredHere(s,root)&&s.Name!=Keys[0]))using(var baseKey=RegistryKey.OpenBaseKey(RegistryHive.CurrentUser,(RegistryView)Enum.Parse(typeof(RegistryView),item.View)))baseKey.DeleteSubKeyTree(KeyRoot+item.Name,false);
@@ -207,7 +211,7 @@ internal static class Engine
         source=Normalize(source);target=Normalize(target);SafeRoot(target);VerifyInstalled(source);RequireStopped(target);
         if(Same(source,target)||Under(source,target)||Under(target,source))throw new IOException("Source/target overlap.");
         bool existed=Directory.Exists(target);
-        if(existed&&Directory.EnumerateFileSystemEntries(target).Any())VerifyExisting(target);
+        if(existed&&Files(target).Any())VerifyExisting(target);
         var incomingEntries=Read<Entry[]>(Child(source,"payload-manifest.json"));
         var existingManifest=Path.Combine(target,"payload-manifest.json");
         var owned=File.Exists(existingManifest)?Read<Entry[]>(existingManifest):new Entry[0];
@@ -265,7 +269,7 @@ internal static class Engine
         foreach(var entry in tx.Written.Where(e=>e.path!="payload-manifest.json"))
             if(!allowed.Any(a=>a.path==entry.path&&a.sha256==entry.sha256&&a.bytes==entry.bytes))throw new IOException("Untrusted rollback payload.");
         string savedFiles=Path.Combine(directory,"files");NoLinks(savedFiles);
-        if(tx.Before.Count>0)VerifyExisting(savedFiles,true);
+        if(tx.Before.Any(e=>e.path=="test-package.json"))VerifyExisting(savedFiles,true);
         if(tx.Retired.Any(e=>e.path!="Remove-TestVersion.ps1"||!tx.Before.Any(b=>b.path==e.path&&b.sha256==e.sha256)))throw new IOException("Untrusted retired payload.");
         foreach(var entry in tx.Before)if(Hash(Child(savedFiles,entry.path))!=entry.sha256)throw new IOException("Backup changed.");
         foreach(var entry in tx.Written)
@@ -308,36 +312,106 @@ internal static class Engine
         if(kind==RegistryValueKind.MultiString)return ((System.Collections.IEnumerable)value).Cast<object>().Select(Convert.ToString).ToArray();
         if(kind==RegistryValueKind.Binary)return ((System.Collections.IEnumerable)value).Cast<object>().Select(Convert.ToByte).ToArray();return Convert.ToString(value);
     }
-    internal static void ValidateTicket(string self,string ticketPath,Ticket ticket)
+    internal static void RefreshRegistration(string root)
+    { VerifyInstalled(root);Register(root,RegistryBefore()); }
+
+    private static bool VerifiedHistory(string folder,string root)
     {
-        NoLinks(ticketPath);if(!Under(ticketPath,RecoveryRoot)||!Same(Path.GetDirectoryName(self),Path.GetDirectoryName(ticketPath))||Hash(self)!=ticket.HelperHash||string.IsNullOrEmpty(ticket.Nonce))throw new IOException("Invalid uninstall handoff.");
-        VerifyInstalled(ticket.Root);if(Hash(Path.Combine(ticket.Root,"ProjectEye.Maintenance.exe"))!=Hash(self))throw new IOException("Helper identity mismatch.");
+        NoLinks(folder);
+        string transaction=Path.Combine(folder,"transaction.json");
+        if(File.Exists(transaction))
+        {
+            var tx=Read<Transaction>(transaction);
+            if(!Same(tx.Root,root)||!Same(tx.Backup,folder)||string.IsNullOrEmpty(tx.Id))return false;
+            string files=Path.Combine(folder,"files");
+            if(tx.Before.Any(e=>e.path=="test-package.json"))VerifyExisting(files,true);
+            else if(tx.Before.Count!=0||!tx.Written.Any(e=>Trusted().Any(t=>t.path=="test-package.json"&&t.path==e.path&&t.sha256==e.sha256)))return false;
+            foreach(var entry in tx.Before)if(Hash(Child(files,entry.path))!=entry.sha256)return false;
+            return true;
+        }
+        string ticketPath=Path.Combine(folder,"ticket.json");
+        string helper=Path.Combine(folder,"ProjectEye.Maintenance.exe");
+        if(File.Exists(ticketPath)&&File.Exists(helper))
+        {
+            var ticket=Read<Dictionary<string,object>>(ticketPath);
+            if(!ticket.ContainsKey("Root")||!Same(Convert.ToString(ticket["Root"]),root))return false;
+            return ticket.ContainsKey("HelperHash")&&Convert.ToString(ticket["HelperHash"])==Hash(helper)&&BuildIdentity.LegacyMaintenanceHashes.Contains(Hash(helper));
+        }
+        string location=Path.Combine(folder,"original-location.json");
+        string original=Path.Combine(folder,"original-files.json");
+        string recovered=Path.Combine(folder,"recovered-files.json");
+        if(File.Exists(location)&&File.Exists(original)&&File.Exists(recovered))
+        {
+            var data=Read<Dictionary<string,object>>(location);
+            if(!data.ContainsKey("path")||!Same(Convert.ToString(data["path"]),root))return false;
+            var entries=Read<Entry[]>(original);
+            var current=Read<Entry[]>(recovered);
+            foreach(var entry in entries.Where(e=>DataPath(e.path)))
+                if(!current.Any(c=>c.path==entry.path&&c.sha256==entry.sha256)||Hash(Child(folder,entry.path))!=entry.sha256)return false;
+            // Original beta.3 manifest is bound to its known release hash in the
+            // preserved recovered-files journal, even after program files were recycled.
+            return current.Any(e=>e.path.Equals("program-files\\payload-manifest.json",StringComparison.OrdinalIgnoreCase)&&BuildIdentity.LegacyManifestHashes.Contains(e.sha256));
+        }
+        return false;
     }
-    internal static string Uninstall(string root,string helper,Ticket ticket)
+    internal static void CheckUninstall(string root)
     {
-        var manifest=VerifyInstalled(root);RequireStopped(root);string recovery=NewRecovery("uninstalled-data");
-        var before=Snapshot(root);Write(Path.Combine(recovery,"original-files.json"),before);Write(Path.Combine(recovery,"original-location.json"),new {path=root,utc=DateTime.UtcNow.ToString("o")});
-        var registry=RegistryBefore();Write(Path.Combine(recovery,"registry-before.json"),registry);var links=BackupLinks(recovery);Write(Path.Combine(recovery,"links-before.json"),links);
-        string bin=Path.Combine(recovery,"program-files");Directory.CreateDirectory(bin);
-        var moved=new List<KeyValuePair<string,string>>();
+        VerifyInstalled(root);RequireStopped(root);
+        // Probe exclusive access before registry or shortcut changes. Do not rely on
+        // shell recycling to discover a locked user database after partial removal.
+        foreach(string file in Files(root))
+        {
+            string relative=Relative(root,file);
+            if(relative.Equals("uninstall\\unins000.dat",StringComparison.OrdinalIgnoreCase)||relative.Equals("uninstall\\unins000.exe",StringComparison.OrdinalIgnoreCase))continue;
+            using(File.Open(file,FileMode.Open,FileAccess.Read,FileShare.None)){}
+        }
+    }
+    internal static string Uninstall(string root)
+    {
+        root=Normalize(root);CheckUninstall(root);
+        var history=new List<string>();int uncertain=0;
+        NoLinks(RecoveryRoot);
+        if(Directory.Exists(RecoveryRoot))foreach(string folder in Directory.GetDirectories(RecoveryRoot))
+        {
+            try{if(VerifiedHistory(folder,root))history.Add(folder);}
+            catch(Exception){uncertain++;}
+        }
+        string stage=Path.Combine(Path.GetTempPath(),"ProjectEye-uninstall-"+Guid.NewGuid().ToString("N"));
+        NoLinks(stage);Directory.CreateDirectory(stage);
+        var registry=RegistryBefore();var links=BackupLinks(stage);
         try
         {
-        foreach(string name in new[]{"Data","Log"}){string directory=Child(root,name);if(Directory.Exists(directory)){string to=Path.Combine(recovery,name);MoveDirectory(directory,to);moved.Add(new KeyValuePair<string,string>(directory,to));}}
-        foreach(var entry in manifest.Concat(new[]{new Entry{path="payload-manifest.json"}}))
-        {string path=Child(root,entry.path);string to=Child(bin,entry.path);Directory.CreateDirectory(Path.GetDirectoryName(to));MoveFile(path,to);moved.Add(new KeyValuePair<string,string>(path,to));}
-        foreach(var entry in before.Where(e=>DataPath(e.path)))if(Hash(Child(recovery,entry.path))!=entry.sha256)throw new IOException("Retained data verification failed.");
-        foreach(var entry in manifest)if(Hash(Child(bin,entry.path))!=entry.sha256)throw new IOException("Removed payload verification failed.");
-        foreach(var item in registry.Where(r=>RegisteredHere(r,root)))using(var key=RegistryKey.OpenBaseKey(RegistryHive.CurrentUser,(RegistryView)Enum.Parse(typeof(RegistryView),item.View)))key.DeleteSubKeyTree(KeyRoot+item.Name,false);
-        ChangeLinks(root,links,true,()=>Write(Path.Combine(recovery,"links-after.json"),links));
+            foreach(var item in registry.Where(r=>RegisteredHere(r,root)))using(var key=RegistryKey.OpenBaseKey(RegistryHive.CurrentUser,(RegistryView)Enum.Parse(typeof(RegistryView),item.View)))key.DeleteSubKeyTree(KeyRoot+item.Name,false);
+            ChangeLinks(root,links,true,()=>{});
+            string native=Path.Combine(root,"uninstall","unins000.dat");
+            if(File.Exists(native))
+            {
+                // Inno owns its open log until usPostUninstall. Move everything
+                // else to a same-volume sibling before a single recoverable recycle.
+                string payloadStage=root+".uninstall-"+Guid.NewGuid().ToString("N");
+                Directory.CreateDirectory(payloadStage);
+                var moved=new List<string>();
+                try
+                {
+                    foreach(string entry in Directory.GetFileSystemEntries(root).Where(p=>!Same(p,Path.Combine(root,"uninstall"))))
+                    {string destination=Path.Combine(payloadStage,Path.GetFileName(entry));if(Directory.Exists(entry))Directory.Move(entry,destination);else File.Move(entry,destination);moved.Add(destination);}
+                    Recycle(payloadStage);
+                }
+                catch
+                {
+                    foreach(string entry in moved.Where(p=>File.Exists(p)||Directory.Exists(p)))
+                    {string destination=Path.Combine(root,Path.GetFileName(entry));if(Directory.Exists(entry))Directory.Move(entry,destination);else File.Move(entry,destination);}
+                    if(Directory.Exists(payloadStage)&&!Directory.EnumerateFileSystemEntries(payloadStage).Any())Recycle(payloadStage);
+                    throw;
+                }
+            }
+            else {Recycle(root);if(Directory.Exists(root))throw new IOException("安装目录未能完整移入回收站，请关闭占用它的程序后重试。");}
         }
-        catch
-        {
-            foreach(var pair in moved.AsEnumerable().Reverse()){Directory.CreateDirectory(Path.GetDirectoryName(pair.Key));if(Directory.Exists(pair.Value))MoveDirectory(pair.Value,pair.Key);else if(File.Exists(pair.Value))MoveFile(pair.Value,pair.Key);}
-            RestoreRegistry(registry,root);RestoreLinks(links,root);
-            throw;
-        }
-        Write(Path.Combine(recovery,"recovered-files.json"),Snapshot(recovery));
-        var unknown=Snapshot(root);Write(Path.Combine(recovery,"unknown-files-preserved.json"),unknown);
-        Recycle(bin);return recovery;
+        catch{RestoreRegistry(registry,root);RestoreLinks(links,root);Recycle(stage);throw;}
+        foreach(string folder in history)
+        {try{Recycle(folder);}catch(Exception){uncertain++;}}
+        Recycle(stage);
+        if(Directory.Exists(RecoveryRoot)&&!Directory.EnumerateFileSystemEntries(RecoveryRoot).Any())Recycle(RecoveryRoot);
+        return uncertain==0?"卸载完成，程序、配置、统计、日志及本安装恢复副本已移入系统回收站。":"卸载完成。部分恢复记录无法可靠确认或回收，已保留，请手动核对；程序和本次配置已移入系统回收站。";
     }
 }

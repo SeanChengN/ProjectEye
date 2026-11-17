@@ -84,6 +84,7 @@ internal static class Integration
                 behaviorBitmap.Render(behaviorVisual);
                 var behaviorEncoder=new System.Windows.Media.Imaging.PngBitmapEncoder();behaviorEncoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(behaviorBitmap));
                 using(var output=File.Create(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"behavior-settings.png")))behaviorEncoder.Save(output);
+                await SettingsScrollTests.Run(collection,settingsWindow,Check);
                 settingsWindow.Close();
                 for(int cycle=0;cycle<20;cycle++)
                 {

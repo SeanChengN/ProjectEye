@@ -71,7 +71,7 @@ try {
     $identity = Join-Path $maintenance 'BuildIdentity.cs'
     $identityText = '[assembly:System.Reflection.AssemblyFileVersion("1.0.0.' + ($releaseProfile.version -replace '^.*beta\.','') + '")]' + "`n" +
         '[assembly:System.Reflection.AssemblyInformationalVersion("' + $releaseProfile.version + '")]' + "`n" +
-        'internal static class BuildIdentity { internal const string Version="' + $releaseProfile.version + '"; internal const string TrustedJson=@"' + $trustedJson.Replace('"','""') + '"; internal static readonly string[] LegacyManifestHashes=new[]{' + (($legacy | ForEach-Object { '"'+$_+'"' }) -join ',') + '}; }'
+        'internal static class BuildIdentity { internal const string Version="' + $releaseProfile.version + '"; internal const string TrustedJson=@"' + $trustedJson.Replace('"','""') + '"; internal static readonly string[] LegacyManifestHashes=new[]{' + (($legacy | ForEach-Object { '"'+$_+'"' }) -join ',') + '}; internal static readonly string[] LegacyMaintenanceHashes=new[]{' + (($releaseProfile.legacyMaintenanceHashes | ForEach-Object { '"'+$_+'"' }) -join ',') + '}; }'
     [IO.File]::WriteAllText($identity,$identityText,$utf8)
     $compiler = $build.msbuild
     $maintenanceEvidence = Join-Path $run 'maintenance'
