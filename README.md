@@ -1,8 +1,16 @@
-# ProjectEye Enhanced — 本地测试版
+# ProjectEye Enhanced
 
-当前测试版：**1.0.0-beta.6**。基于下述上游 ProjectEye，保留原有功能并增加系统媒体控制。
+**1.0.0 正式版**，基于 [Planshit/ProjectEye 1.4.3](https://github.com/Planshit/ProjectEye)，保留原有护眼提醒并增加系统媒体暂停、安全恢复和可选的休息结束显示桌面。
 
-使用方法、播放器设置、已知限制与可恢复卸载见 [测试版说明](docs/TEST-VERSION.md)，变更见 [CHANGELOG](CHANGELOG.md)。构建/打包入口见 [Phase 6](docs/PHASE6-TEST-RELEASE.md)。以下保留上游介绍和署名；其中上游下载链接不提供本增强版。
+[下载正式版](https://github.com/SeanChengN/ProjectEye/releases/latest) · [使用与升级说明](docs/TEST-VERSION.md) · [更新记录](CHANGELOG.md) · [发布验证](docs/RELEASE-1.0.0.md)
+
+- 安装版无需管理员权限，支持 beta.1–beta.6 原目录升级并保留配置、统计；不建立安装恢复备份。
+- 安装及卸载使用简体中文，设置页滚动条常显。卸载会把整个专用安装目录（含数据）送入系统回收站，请使用应用自带卸载。
+- 自动暂停、自动恢复和结束休息最小化均默认关闭。置顶窗口和 OpenCodex Monitor 排除最小化。
+- 需要 Windows 10 1809+ 与 .NET Framework 4.5 或兼容更新版本。实测系统为 Windows 10 22H2；Windows 11、长期稳定性、完整 DPI 矩阵与 HiBit 深度清理尚未验证。
+- 安装包未数字签名。旧上游更新器已停用，新版本请从本仓库手动下载安装。
+
+以下保留上游功能介绍与署名。
 
 ---
 
@@ -36,13 +44,13 @@
 
 ## 下载安装
 
-你可以在这里 [Releases](https://github.com/Planshit/ProjectEye/releases) 下载所有发布版本编译好的EXE文件压缩包，一般是ProjectEye.zip，解压后直接双击ProjectEye.exe即可运行，无需安装。
+你可以在这里 [Releases](https://github.com/SeanChengN/ProjectEye/releases) 下载所有发布版本编译好的EXE文件压缩包，一般是ProjectEye.zip，解压后直接双击ProjectEye.exe即可运行，无需安装。
 
 成功启动后你将在右下角的状态栏中看到 😎 图标，右键显示菜单，双击启动或关闭番茄时钟模式。
 
 ## 运行环境
 
-OS: Windows7/10
+OS: Windows 10 1809+（Windows 10 22H2 已测，Windows 11 未测）
 
 Runtime: [.NET Framework 4.5+](https://dotnet.microsoft.com/download/dotnet-framework) 
 

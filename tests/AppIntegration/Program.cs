@@ -35,6 +35,30 @@ internal static class Integration
                 var updateModel=(ProjectEye.ViewModels.UpdateViewModel)typeof(ProjectEye.Core.WindowManager).GetMethod("CreateViewModel",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{"UpdateWindow"});
                 Check(!updateModel.PlayProcess&&updateModel.UpVisibility==Visibility.Collapsed&&updateModel.InstallVisibility==Visibility.Collapsed,"upstream update controls disabled");
                 Check(updateModel.VersionInfo.Contains("1.4.3"),"upstream baseline retained in update notice");
+                Check(updateModel.VersionUrl=="https://github.com/SeanChengN/ProjectEye/releases/latest","stable release download points to own repository");
+                var legacyJson="{\"ContainerAttr\":null,\"Elements\":[],\"UnknownLegacyField\":true}";
+                var design=Newtonsoft.Json.JsonConvert.DeserializeObject<ProjectEye.Models.UI.UIDesignModel>(legacyJson);
+                var roundtrip=Newtonsoft.Json.JsonConvert.DeserializeObject<ProjectEye.Models.UI.UIDesignModel>(Newtonsoft.Json.JsonConvert.SerializeObject(design));
+                Check(roundtrip.Elements!=null&&roundtrip.Elements.Count==0,"legacy theme JSON survives safe Json.NET roundtrip");
+                var glyph=new System.Windows.Media.GlyphTypeface(new Uri(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts),"segmdl2.ttf")));
+                foreach(int code in new[]{0xE70E,0xE70D,0xEC11,0xEE93}) Check(glyph.CharacterToGlyphMap.ContainsKey(code),"system icon glyph "+code.ToString("X"));
+                Check(!Array.Exists(typeof(Project1.UI.Controls.Toggle).Assembly.GetManifestResourceNames(),r=>r.EndsWith(".ttf",StringComparison.OrdinalIgnoreCase)),"no redistributed icon font assembly resource");
+                foreach(var assembly in new[]{typeof(Project1.UI.Controls.Toggle).Assembly,typeof(App).Assembly})
+                foreach(var resourceName in assembly.GetManifestResourceNames()) if(resourceName.EndsWith(".g.resources")) {
+                    using(var reader=new System.Resources.ResourceReader(assembly.GetManifestResourceStream(resourceName)))
+                    foreach(System.Collections.DictionaryEntry item in reader) Check(!((string)item.Key).EndsWith(".ttf",StringComparison.OrdinalIgnoreCase),"compiled resource excludes font: "+item.Key);
+                }
+                var export=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"statistics-roundtrip.xlsx");
+                new Npoi.Mapper.Mapper().Save(export,new[]{new ExportRow {Count=42,Name="统计兼容"}},"statistics",overwrite:true);
+                using(var stream=File.OpenRead(export)) {
+                    var workbook=new NPOI.XSSF.UserModel.XSSFWorkbook(stream);
+                    Check(workbook.NumberOfSheets==1&&workbook.GetSheetAt(0).LastRowNum==1,"statistics XLSX export opens with patched compression library");
+                    workbook.Close();
+                }
+                var optionsJson=Newtonsoft.Json.JsonConvert.SerializeObject(config.options);
+                var jsonOptions=Newtonsoft.Json.JsonConvert.DeserializeObject<ProjectEye.Core.Models.Options.OptionsModel>(optionsJson);
+                Check(jsonOptions.General.WarnTime==config.options.General.WarnTime,"legacy settings JSON roundtrip");
+
                 Check(Path.GetFullPath(Environment.CurrentDirectory).TrimEnd(Path.DirectorySeparatorChar)==Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar),"application owns relative data directory");
                 var settingsWindow=new ProjectEye.Views.OptionsWindow {DataContext=viewModel};
                 Check(settingsWindow.FindName("DesktopMinimizeToggle")!=null,"desktop setting compiled in behavior tab");
@@ -110,6 +134,7 @@ internal static class Integration
         }),DispatcherPriority.ApplicationIdle);
         app.Run();return result;
     }
+    public class ExportRow {public int Count {get;set;} public string Name {get;set;}}
     private static T Find<T>(DependencyObject node) where T:DependencyObject
     {
         if(node is T)return (T)node;

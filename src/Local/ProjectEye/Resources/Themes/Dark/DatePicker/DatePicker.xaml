@@ -76,7 +76,7 @@
                         Background="{TemplateBinding Background}"
                             CornerRadius="18">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                <TextBlock FontFamily="/Project1.UI;component/Assets/IconFonts/#Fabric External MDL2 Assets" Text="&#xEE93;" VerticalAlignment="Center"  FontSize="14" TextAlignment="Center" Foreground="#ffffff"/>
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xEE93;" VerticalAlignment="Center"  FontSize="14" TextAlignment="Center" Foreground="#ffffff"/>
                                 <TextBlock Margin="5,0,0,0" VerticalAlignment="Center" FontSize="14" FontWeight="Bold" Grid.Column="1" Foreground="#ffffff" Text="{DynamicResource Lang_Monthly}"/>
                                 <TextBlock Margin="5,0,0,0" VerticalAlignment="Center" FontSize="14" FontWeight="Bold" Grid.Column="1" Foreground="#ffffff">
                                 <Run Text="{TemplateBinding SelectedYear,Converter={StaticResource StringConverter}}"/> <Run Text="/"/> <Run Text="{TemplateBinding SelectedMonth,Converter={StaticResource StringConverter}}"/>

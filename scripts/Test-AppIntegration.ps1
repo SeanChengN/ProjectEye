@@ -17,6 +17,7 @@ $vswhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/v
 $msbuild=@(& $vswhere -latest -products '*' -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe')|Select-Object -First 1
 & $msbuild (Join-Path $source 'AppIntegration.csproj') /t:Build /nologo /v:minimal "/p:AppPath=$app" "/p:EvidencePath=$run" "/p:TargetFrameworkRootPath=$($build.referenceRoot)" /fl "/flp:LogFile=$run/build.log;Encoding=UTF-8"
 if($LASTEXITCODE-ne0){throw 'App integration harness build failed'}
+if(Test-Path (Join-Path $app 'ProjectEye.exe.config')){Copy-Item -LiteralPath (Join-Path $app 'ProjectEye.exe.config') -Destination (Join-Path $app 'AppIntegration.exe.config')}
 $data=Join-Path $app 'Data';New-Item -ItemType Directory -Path $data | Out-Null
 [IO.File]::WriteAllText((Join-Path $app 'expected-version.txt'),(Get-Content -LiteralPath (Join-Path $repo 'packaging/test-release.json') -Raw -Encoding utf8 | ConvertFrom-Json).version,[Text.UTF8Encoding]::new($false))
 # A minimal legacy XML intentionally omits Media. Existing startup fills missing sections.

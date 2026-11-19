@@ -22,7 +22,7 @@ $planRecord = [ordered]@{
     sourceCommit=(& git -C $repo rev-parse HEAD); inputFingerprint=$fingerprint
     iscc=$iscc; isccSha256=(Get-FileHash -LiteralPath $iscc -Algorithm SHA256).Hash
     freeBytes=(Get-PSDrive ([IO.Path]::GetPathRoot($repo).Substring(0,1))).Free
-    outputRoot=(Join-Path $repo 'artifacts/test-release'); cacheReuse=$false; publicationAllowed=$false
+    outputRoot=(Join-Path $repo 'artifacts/release'); cacheReuse=$false; publicationAllowed=$releaseProfile.publicationAllowed
 }
 if ($Plan) { $planRecord | ConvertTo-Json; return }
 $run = Join-Path $planRecord.outputRoot ((Get-Date -Format 'yyyyMMdd-HHmmss-fff') + '-' + $releaseProfile.version)
@@ -39,6 +39,7 @@ try {
     $buildDirectory = "$evidenceLine".Substring('BASELINE_EVIDENCE='.Length)
     $build = Get-Content -LiteralPath (Join-Path $buildDirectory 'result.json') -Raw -Encoding utf8 | ConvertFrom-Json
     if (!$build.success) { throw 'Baseline build failed.' }
+    & (Join-Path $PSScriptRoot 'Test-ReleaseDependencies.ps1') -BuildDirectory $buildDirectory
     $result.buildDirectory = $buildDirectory
     $result.buildSeconds = $clock.Elapsed.TotalSeconds
     $payload = Join-Path $run ('ProjectEye-Enhanced-' + $releaseProfile.version)
@@ -71,7 +72,7 @@ try {
     New-Item -ItemType Directory -Path $maintenance | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $repo 'packaging/Maintenance') -File | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $maintenance $_.Name) }
     $identity = Join-Path $maintenance 'BuildIdentity.cs'
-    $identityText = '[assembly:System.Reflection.AssemblyFileVersion("1.0.0.' + ($releaseProfile.version -replace '^.*beta\.','') + '")]' + "`n" +
+    $identityText = '[assembly:System.Reflection.AssemblyFileVersion("' + $releaseProfile.fileVersion + '")]' + "`n" +
         '[assembly:System.Reflection.AssemblyInformationalVersion("' + $releaseProfile.version + '")]' + "`n" +
         'internal static class BuildIdentity { internal const string Version="' + $releaseProfile.version + '"; internal const string TrustedJson=@"' + $trustedJson.Replace('"','""') + '"; internal static readonly string[] LegacyManifestHashes=new[]{' + (($legacy | ForEach-Object { '"'+$_+'"' }) -join ',') + '}; internal static readonly string[] LegacyMaintenanceHashes=new[]{' + (($releaseProfile.legacyMaintenanceHashes | ForEach-Object { '"'+$_+'"' }) -join ',') + '}; internal static readonly string[] RetiredFiles=new[]{' + (($releaseProfile.retiredFiles | ForEach-Object { '"'+$_.Replace('/','\\')+'"' }) -join ',') + '}; }'
     [IO.File]::WriteAllText($identity,$identityText,$utf8)
@@ -93,7 +94,7 @@ try {
     foreach ($file in $manifest) {
         if ((Get-FileHash -LiteralPath (Join-Path $zipCheck $file.path) -Algorithm SHA256).Hash -ne $file.sha256) { throw "ZIP mismatch: $($file.path)" }
     }
-    & $iscc ("/DPayload=$payload") ("/DCandidate=$run") ("/DReleaseVersion=$($releaseProfile.version)") (Join-Path $repo 'packaging/TestVersion.iss') 2>&1 | Tee-Object -FilePath (Join-Path $run 'installer-build.log')
+    & $iscc ("/DPayload=$payload") ("/DCandidate=$run") ("/DReleaseVersion=$($releaseProfile.version)") ("/DReleaseFileVersion=$($releaseProfile.fileVersion)") (Join-Path $repo 'packaging/TestVersion.iss') 2>&1 | Tee-Object -FilePath (Join-Path $run 'installer-build.log')
     if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
     $setup = Join-Path $run ('ProjectEye-Enhanced-' + $releaseProfile.version + '-Setup.exe')
     $artifacts = @($zip,$setup) | ForEach-Object { [ordered]@{file=[IO.Path]::GetFileName($_); bytes=(Get-Item -LiteralPath $_).Length; sha256=(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash} }

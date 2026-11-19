@@ -4,6 +4,7 @@ param([Parameter(Mandatory)][string]$Candidate)
 $ErrorActionPreference='Stop'
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $Candidate=(Resolve-Path -LiteralPath $Candidate).Path
+if(Get-Process ProjectEye,AppIntegration -ErrorAction SilentlyContinue){throw 'Run maintenance tests sequentially after application integration exits.'}
 $release=Get-Content -LiteralPath (Join-Path $Candidate 'result.json') -Raw -Encoding utf8|ConvertFrom-Json
 if(!$release.success){throw 'Successful candidate required'}
 $run=Join-Path $repo ('artifacts/maintenance-tests/'+(Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
@@ -27,6 +28,8 @@ Json (Join-Path $source 'payload-manifest.json') $manifest
 $tool=Join-Path $source 'ProjectEye.Maintenance.exe'
 $counter=0
 function Invoke-Tool([string[]]$Arguments,[switch]$Failure,[string]$Executable=$tool,[switch]$Interrupted){
+    # Shell recycle and security scanners may briefly retain just-exited EXE handles.
+    Start-Sleep -Milliseconds 1500
     $script:counter++;$result=Join-Path $run ("result-$script:counter.json")
     $all=@($Arguments)+@('--quiet','--result',$result)
     $quoted=@($all|ForEach-Object{'"'+($_ -replace '(\\+)$','$1$1')+'"'}) -join ' '

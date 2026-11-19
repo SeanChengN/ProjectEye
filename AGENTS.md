@@ -29,3 +29,5 @@
 - beta.5 window protection and lean payload: [contract](docs/BETA5-WINDOW-PROTECTION.md). Preserve all topmost windows and all OpenCodex Monitor windows; revalidate before sending minimize. Runtime files use the release profile allowlist; README/CHANGELOG stay outside archives/install payload, required licenses stay inside.
 
 - beta.6 installation supersedes backup/rollback contracts: [no-backup maintenance](docs/BETA6-NO-BACKUPS.md). Never create Recovery directories or copy old payload/data for installation; stage new files, keep only retry metadata until success, and repair with the same package. Legacy history is read-only input to narrowly verified recycling.
+
+- Stable 1.0.0 publication authorized by user 2026-11-19: see docs/RELEASE-1.0.0.md. Profile supports stable version/fileVersion; retain historical beta integrity hashes. Compatible security updates are authorized; no framework upgrade. Native uninstall AppId stays unchanged for upgrades.

@@ -7,6 +7,9 @@
 #ifndef ReleaseVersion
   #error ReleaseVersion is required
 #endif
+#ifndef ReleaseFileVersion
+  #error ReleaseFileVersion is required
+#endif
 [Setup]
 #ifdef TestIsolation
 AppId=ProjectEyeEnhanced-MaintenanceTests
@@ -15,6 +18,7 @@ AppId=ProjectEyeEnhanced-Test
 #endif
 AppName=ProjectEye Enhanced
 AppVersion={#ReleaseVersion}
+VersionInfoVersion={#ReleaseFileVersion}
 AppVerName=ProjectEye Enhanced {#ReleaseVersion}
 DefaultDirName={code:ExistingDirectory}
 UsePreviousAppDir=no
@@ -59,7 +63,7 @@ var
   Names: array[0..2] of String;
   Content: AnsiString;
 begin
-  Result := ExpandConstant('{localappdata}\Programs\ProjectEyeEnhanced\Test');
+  Result := ExpandConstant('{localappdata}\Programs\ProjectEyeEnhanced');
   Names[0] := 'ProjectEyeEnhanced-Test';
   Names[1] := 'ProjectEyeEnhanced-beta2';
   Names[2] := 'ProjectEyeEnhanced-beta1';

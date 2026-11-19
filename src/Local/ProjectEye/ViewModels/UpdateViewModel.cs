@@ -71,10 +71,12 @@ namespace ProjectEye.ViewModels
             githubRelease.RequestErrorEvent += Updater_RequestErrorEvent;
 
 
-            // Local beta: never query or install the upstream application.
+            // Manual releases only: never query or install the upstream application.
+            VersionUrl = "https://github.com/SeanChengN/ProjectEye/releases/latest";
             bool english = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "en";
-            Tip = english ? "Local test version: automatic updates are disabled." : "本地测试版：已停用自动更新。";
-            VersionInfo = english ? "Install the next test package manually. Upstream: ProjectEye 1.4.3." : "请使用后续测试包手动更新。上游基线：ProjectEye 1.4.3。";
+            Tip = english ? "Automatic updates are disabled; download releases manually." : "已停用自动更新，请手动下载安装新版本。";
+            var releaseVersion = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
+            VersionInfo = english ? "ProjectEye Enhanced " + releaseVersion + ". Upstream: ProjectEye 1.4.3." : "ProjectEye Enhanced " + releaseVersion + "。上游基线：ProjectEye 1.4.3。";
             PlayProcess = false;
         }
 

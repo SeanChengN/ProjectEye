@@ -109,7 +109,7 @@ internal static class Engine
         var marker=Read<Marker>(Child(root,"test-package.json"));
         if(marker.product!="ProjectEye Enhanced")throw new IOException("Unrecognized installation.");
         if(marker.version==BuildIdentity.Version){VerifyInstalled(root,!recovery);return;}
-        if(marker.version!="1.0.0-beta.1"&&marker.version!="1.0.0-beta.2"&&marker.version!="1.0.0-beta.3"&&marker.version!="1.0.0-beta.4"&&marker.version!="1.0.0-beta.5")throw new IOException("Unsupported installed version.");
+        if(marker.version!="1.0.0-beta.1"&&marker.version!="1.0.0-beta.2"&&marker.version!="1.0.0-beta.3"&&marker.version!="1.0.0-beta.4"&&marker.version!="1.0.0-beta.5"&&marker.version!="1.0.0-beta.6")throw new IOException("Unsupported installed version.");
         string hash=Hash(Child(root,"payload-manifest.json"));
         if(!BuildIdentity.LegacyManifestHashes.Contains(hash))throw new IOException("Legacy manifest is not a known local release.");
         var manifest=Read<Entry[]>(Child(root,"payload-manifest.json"));
@@ -158,7 +158,7 @@ internal static class Engine
 #if MAINTENANCE_TESTS
         return new[]{Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ProjectEyeEnhanced-MaintenanceTests","ProjectEye Enhanced Test.lnk")};
 #else
-        return new[]{Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"ProjectEye Enhanced Test.lnk"),Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"ProjectEye Enhanced beta.1.lnk"),Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"ProjectEye Enhanced beta.2.lnk"),Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup),"ProjectEye Enhanced.lnk"),Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),"ProjectEye Enhanced.lnk")};
+        return new[]{Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"ProjectEye Enhanced.lnk"),Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"ProjectEye Enhanced Test.lnk"),Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"ProjectEye Enhanced beta.1.lnk"),Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"ProjectEye Enhanced beta.2.lnk"),Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup),"ProjectEye Enhanced.lnk"),Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),"ProjectEye Enhanced.lnk")};
 #endif
     }
     private static string LinkTarget(string path)

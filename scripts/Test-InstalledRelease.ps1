@@ -57,7 +57,7 @@ $manifest=Get-Content (Join-Path $payload 'payload-manifest.json') -Raw -Encodin
 $entry=$manifest|Where-Object path -eq 'ProjectEye.Maintenance.exe';$entry.sha256=(Get-FileHash (Join-Path $payload $entry.path)).Hash;$entry.bytes=(Get-Item (Join-Path $payload $entry.path)).Length
 Json (Join-Path $payload 'payload-manifest.json') $manifest
 $plan=Get-Content (Join-Path $Candidate 'plan.json') -Raw -Encoding utf8|ConvertFrom-Json
-& $plan.iscc ("/DPayload=$payload") ("/DCandidate=$run") ("/DReleaseVersion=$($release.version)") /DTestIsolation=1 (Join-Path $repo 'packaging/TestVersion.iss') > (Join-Path $run 'inno-build.log')
+& $plan.iscc ("/DPayload=$payload") ("/DCandidate=$run") ("/DReleaseVersion=$($release.version)") ("/DReleaseFileVersion=$((Get-Content (Join-Path $repo 'packaging/test-release.json') -Raw -Encoding utf8|ConvertFrom-Json).fileVersion)") /DTestIsolation=1 (Join-Path $repo 'packaging/TestVersion.iss') > (Join-Path $run 'inno-build.log')
 if($LASTEXITCODE-ne0){throw 'Test installer build failed'}
 $release.payload=$payload;$release.setup=Join-Path $run ('ProjectEye-Enhanced-'+$release.version+'-Setup.exe')
 $historyRoot=Join-Path $env:LOCALAPPDATA 'ProjectEyeEnhanced-Recovery'
@@ -97,6 +97,15 @@ try{
     }finally{$locked.Dispose()}
     Uninstall 'fresh-uninstall'
     for($cycle=2;$cycle-le3;$cycle++){Setup ('cycle-'+$cycle);Uninstall ('cycle-'+$cycle)}
+    $legacy1=Join-Path $repo 'artifacts/test-release/20261116-191450-590-1.0.0-beta.1/ProjectEye-Enhanced-1.0.0-beta.1'
+    New-Item -ItemType Directory -Path $root -Force|Out-Null
+    Copy-Item -Path (Join-Path $legacy1 '*') -Destination $root -Recurse -Force
+    New-Item -ItemType Directory -Path (Join-Path $root 'Data') -Force|Out-Null
+    [IO.File]::WriteAllText((Join-Path $root 'Data/config.xml'),'<Options>beta1</Options>',$utf8)
+    $hash1=(Get-FileHash (Join-Path $root 'Data/config.xml')).Hash
+    Setup 'beta1-stable-upgrade'
+    Assert ((Get-FileHash (Join-Path $root 'Data/config.xml')).Hash-eq$hash1) 'Beta.1 stable upgrade preserves configuration'
+    Uninstall 'beta1-upgraded-uninstall'
     $legacy=Join-Path $repo 'artifacts/test-release/20261116-205717-242-1.0.0-beta.2/ProjectEye-Enhanced-1.0.0-beta.2'
     New-Item -ItemType Directory -Path $root -Force|Out-Null
     Copy-Item -Path (Join-Path $legacy '*') -Destination $root -Recurse -Force
@@ -140,6 +149,16 @@ try{
     Assert ((Get-FileHash (Join-Path $root 'Data/config.xml')).Hash-eq$hash5) 'Beta.5 upgrade retains configuration'
     Assert (!(Test-Path (Join-Path $root '.projecteye-install-state.json'))) 'Final Inno registration removes interrupted state'
     Uninstall 'beta5-upgraded-uninstall'
+    $legacy6=Join-Path $repo 'artifacts/test-release/20261119-203703-992-1.0.0-beta.6/ProjectEye-Enhanced-1.0.0-beta.6'
+    New-Item -ItemType Directory -Path $root -Force|Out-Null
+    Copy-Item -Path (Join-Path $legacy6 '*') -Destination $root -Recurse -Force
+    New-Item -ItemType Directory -Path (Join-Path $root 'Data'),(Join-Path $root 'Log')|Out-Null
+    [IO.File]::WriteAllText((Join-Path $root 'Data/config.xml'),'<Options>beta6</Options>',$utf8)
+    [IO.File]::WriteAllBytes((Join-Path $root 'Data/statistics.db'),[byte[]](0..255))
+    $hash6=TreeHash (Join-Path $root 'Data')
+    Setup 'beta6-stable-upgrade';Setup 'stable-repair'
+    Assert (($hash6|ConvertTo-Json -Compress)-eq((TreeHash (Join-Path $root 'Data'))|ConvertTo-Json -Compress)) 'Beta.6 stable upgrade and repair preserve data'
+    Uninstall 'stable-upgraded-uninstall'
     $historyAfter=@(Get-ChildItem -LiteralPath $historyRoot -Directory -ErrorAction SilentlyContinue|Select-Object -ExpandProperty Name|Sort-Object)
     Assert (($historyBefore-join',')-eq($historyAfter-join',')) 'No install upgrade repair or uninstall creates Recovery directories'
     $after=State;Json (Join-Path $run 'protected-after.json') $after
