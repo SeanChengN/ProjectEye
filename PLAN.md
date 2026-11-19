@@ -491,7 +491,7 @@ Task<IReadOnlyList<MediaSessionSnapshot>>
 - [x] 完成版本号设置。
 - [x] 生成安装包。
 - [x] 生成便携版。
-- [ ] 验证安装、卸载和升级。
+- [x] 验证安装、卸载和升级。
 - [x] 编写 README。
 - [x] 编写更新日志。
 
