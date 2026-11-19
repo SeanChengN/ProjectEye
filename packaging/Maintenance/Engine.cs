@@ -15,13 +15,16 @@ internal sealed class Marker { public string product; public string version; }
 internal sealed class RegValue { public string Name; public object Value; public string Kind; }
 internal sealed class RegSnapshot { public string View; public string Name; public bool Exists; public RegValue[] Values; }
 internal sealed class LinkSnapshot { public string Path; public string Backup; public bool Existed; public string BeforeHash; public string AfterHash; public bool Changed; }
-internal sealed class Transaction
+// Read-only compatibility shape for recycling historical backups, never written.
+internal sealed class LegacyTransaction
 {
-    public string Root; public string Backup; public string Id; public string State;
-    public bool Existed; public List<Entry> Before = new List<Entry>();
-    public List<Entry> Written = new List<Entry>(); public List<string> NewDirectories = new List<string>();
-    public List<Entry> Retired = new List<Entry>();
-    public List<RegSnapshot> Registry; public List<LinkSnapshot> Links;
+    public string Root; public string Backup; public string Id;
+    public List<Entry> Before; public List<Entry> Written;
+}
+internal sealed class InstallState
+{
+    public string Product; public string Root; public string CandidateHash;
+    public string PreviousManifest; public string StageName;
 }
 internal static class Engine
 {
@@ -46,12 +49,6 @@ internal static class Engine
     }
     internal static string Hash(string path)
     { using(var input=File.OpenRead(path))using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(input)).Replace("-",""); }
-    internal static string NewRecovery(string purpose)
-    {
-        NoLinks(RecoveryRoot);Directory.CreateDirectory(RecoveryRoot);
-        string path=Path.Combine(RecoveryRoot,DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff")+"-"+purpose+"-"+Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(path);return path;
-    }
     internal static string Normalize(string path)
     { if(string.IsNullOrWhiteSpace(path))throw new ArgumentException("Directory missing.");return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar); }
     private static bool Same(string a,string b) { return string.Equals(Normalize(a),Normalize(b),StringComparison.OrdinalIgnoreCase); }
@@ -106,12 +103,13 @@ internal static class Engine
         }
         return manifest;
     }
-    private static void VerifyExisting(string root,bool recovery=false)
+    internal static void VerifyExisting(string root,bool recovery=false)
     {
+        if(!recovery)SafeRoot(root);
         var marker=Read<Marker>(Child(root,"test-package.json"));
         if(marker.product!="ProjectEye Enhanced")throw new IOException("Unrecognized installation.");
         if(marker.version==BuildIdentity.Version){VerifyInstalled(root,!recovery);return;}
-        if(marker.version!="1.0.0-beta.1"&&marker.version!="1.0.0-beta.2"&&marker.version!="1.0.0-beta.3"&&marker.version!="1.0.0-beta.4")throw new IOException("Unsupported installed version.");
+        if(marker.version!="1.0.0-beta.1"&&marker.version!="1.0.0-beta.2"&&marker.version!="1.0.0-beta.3"&&marker.version!="1.0.0-beta.4"&&marker.version!="1.0.0-beta.5")throw new IOException("Unsupported installed version.");
         string hash=Hash(Child(root,"payload-manifest.json"));
         if(!BuildIdentity.LegacyManifestHashes.Contains(hash))throw new IOException("Legacy manifest is not a known local release.");
         var manifest=Read<Entry[]>(Child(root,"payload-manifest.json"));
@@ -192,100 +190,145 @@ internal static class Engine
         if(File.Exists(path))FileSystem.DeleteFile(path,UIOption.OnlyErrorDialogs,RecycleOption.SendToRecycleBin);
         else if(Directory.Exists(path))FileSystem.DeleteDirectory(path,UIOption.OnlyErrorDialogs,RecycleOption.SendToRecycleBin);
     }
-    private static void CopyTree(string from,string to,List<Entry> files)
+    private const string StateName=".projecteye-install-state.json";
+    private static string HashText(string value)
+    {using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(Utf8.GetBytes(value))).Replace("-","");}
+    private static Entry[] ManifestEntries(string json)
     {
-        foreach(var entry in files){string source=Child(from,entry.path);string target=Child(to,entry.path);Directory.CreateDirectory(Path.GetDirectoryName(target));File.Copy(source,target);if(Hash(target)!=entry.sha256)throw new IOException("Recovery backup verification failed.");}
+        var entries=new JavaScriptSerializer {MaxJsonLength=64*1024*1024}.Deserialize<Entry[]>(json);
+        if(entries==null||entries.Length==0||entries.Select(e=>e.path).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=entries.Length)throw new IOException("Untrusted previous manifest.");
+        foreach(var entry in entries)if(DataPath(entry.path))throw new IOException("Untrusted data manifest.");
+        return entries;
     }
-    private static void MoveDirectory(string from,string to)
+    private static Entry[] OldEntries(string text,string candidateHash)
     {
-        if(Same(Path.GetPathRoot(from),Path.GetPathRoot(to))){Directory.Move(from,to);return;}
-        Directory.CreateDirectory(to);CopyTree(from,to,Snapshot(from));Recycle(from);
+        if(string.IsNullOrEmpty(text))return new Entry[0];
+        string hash=HashText(text);
+        if(hash!=candidateHash&&!BuildIdentity.LegacyManifestHashes.Contains(hash))throw new IOException("Untrusted previous manifest.");
+        return ManifestEntries(text).Concat(new[]{new Entry{path="payload-manifest.json",sha256=hash,bytes=Utf8.GetByteCount(text)}}).ToArray();
     }
-    private static void MoveFile(string from,string to)
+    private static bool Matches(string file,Entry entry)
+    {return File.Exists(file)&&new FileInfo(file).Length==entry.bytes&&Hash(file)==entry.sha256;}
+    private static bool CandidatePrefix(string partial,string complete)
     {
-        if(Same(Path.GetPathRoot(from),Path.GetPathRoot(to))){File.Move(from,to);return;}
-        File.Copy(from,to);if(Hash(from)!=Hash(to))throw new IOException("Cross-volume move verification failed.");Recycle(from);
+        using(var left=File.OpenRead(partial))using(var right=File.OpenRead(complete))
+        {
+            if(left.Length>right.Length)return false;
+            var a=new byte[65536];var b=new byte[65536];int read;
+            while((read=left.Read(a,0,a.Length))>0)
+            {int count=0;while(count<read){int n=right.Read(b,count,read-count);if(n==0)return false;count+=n;}for(int i=0;i<read;i++)if(a[i]!=b[i])return false;}
+            return true;
+        }
     }
-    internal static string Install(string source,string target,string failAt)
+    private static void ValidatePending(string root,InstallState state,string candidateHash,Entry[] incoming,string source)
+    {
+        if(state.Product!="ProjectEye Enhanced"||!Same(state.Root,root)||state.CandidateHash!=candidateHash)throw new IOException("安装尚未完成，请重新运行同一个安装包；不要覆盖其他版本或目录。");
+        Guid id;
+        if(state.StageName==null||!state.StageName.StartsWith(".projecteye-stage-",StringComparison.Ordinal)||!Guid.TryParseExact(state.StageName.Substring(18),"N",out id))throw new IOException("Untrusted install stage.");
+        var previous=OldEntries(state.PreviousManifest,candidateHash);
+        foreach(var entry in previous.Concat(incoming).GroupBy(e=>e.path,StringComparer.OrdinalIgnoreCase))
+        {
+            string file=Child(root,entry.Key);
+            if(Directory.Exists(file))throw new IOException("File path is a directory.");
+            if(File.Exists(file)&&!entry.Any(e=>Matches(file,e)))throw new IOException("Interrupted payload changed: "+entry.Key);
+        }
+        string stage=Child(root,state.StageName);
+        if(Directory.Exists(stage))
+        {
+            foreach(string file in Files(stage))
+            {
+                string relative=Relative(stage,file);
+                if(!incoming.Any(e=>e.path.Equals(relative,StringComparison.OrdinalIgnoreCase)&&CandidatePrefix(file,Child(source,e.path))))throw new IOException("Untrusted staged file.");
+            }
+        }
+    }
+    internal static string Install(string source,string target,string failAt,bool deferFinalize=false)
     {
         source=Normalize(source);target=Normalize(target);SafeRoot(target);VerifyInstalled(source);RequireStopped(target);
         if(Same(source,target)||Under(source,target)||Under(target,source))throw new IOException("Source/target overlap.");
-        bool existed=Directory.Exists(target);
-        if(existed&&Files(target).Any())VerifyExisting(target);
-        var incomingEntries=Read<Entry[]>(Child(source,"payload-manifest.json"));
-        var existingManifest=Path.Combine(target,"payload-manifest.json");
-        var owned=File.Exists(existingManifest)?Read<Entry[]>(existingManifest):new Entry[0];
-        foreach(var entry in incomingEntries)
-            if(File.Exists(Child(target,entry.path))&&!owned.Any(e=>e.path.Equals(entry.path,StringComparison.OrdinalIgnoreCase)))throw new IOException("Unknown file would be overwritten: "+entry.path);
+        string manifestText=File.ReadAllText(Child(source,"payload-manifest.json"),Utf8);
+        string candidateHash=HashText(manifestText);
+        var incoming=ManifestEntries(manifestText).Concat(new[]{new Entry{path="payload-manifest.json",sha256=candidateHash,bytes=Utf8.GetByteCount(manifestText)}}).ToArray();
+        string stateFile=Child(target,StateName);InstallState state;
+        if(File.Exists(stateFile))
+        {
+            state=Read<InstallState>(stateFile);ValidatePending(target,state,candidateHash,incoming,source);
+        }
+        else
+        {
+            string previous=null;
+            if(Directory.Exists(target)&&Files(target).Any())
+            {VerifyExisting(target);previous=File.ReadAllText(Child(target,"payload-manifest.json"),Utf8);}
+            state=new InstallState{Product="ProjectEye Enhanced",Root=target,CandidateHash=candidateHash,PreviousManifest=previous,StageName=".projecteye-stage-"+Guid.NewGuid().ToString("N")};
+        }
+        var owned=OldEntries(state.PreviousManifest,candidateHash);
+        foreach(var entry in incoming)
+        {
+            string file=Child(target,entry.path);
+            if(Directory.Exists(file))throw new IOException("File path is a directory.");
+            if(File.Exists(file)&&!owned.Any(e=>e.path.Equals(entry.path,StringComparison.OrdinalIgnoreCase))&&!File.Exists(stateFile))throw new IOException("Unknown file would be overwritten: "+entry.path);
+        }
         var before=RegistryBefore();
-        foreach(var item in before.Where(s=>s.Name==Keys[0]&&s.Exists))if(!RegisteredHere(item,target))throw new IOException("Existing test channel belongs to another directory.");
-        var tx=new Transaction {Id=Guid.NewGuid().ToString("N"),Root=target,Backup=NewRecovery("upgrade"),State="Prepared",Existed=existed,Before=existed?Snapshot(target):new List<Entry>(),Registry=before};
-        string backupFiles=Path.Combine(tx.Backup,"files");Directory.CreateDirectory(backupFiles);CopyTree(target,backupFiles,tx.Before);
-        tx.Links=BackupLinks(tx.Backup);Write(Path.Combine(tx.Backup,"transaction.json"),tx);
+        foreach(var item in before.Where(r=>r.Name==Keys[0]&&r.Exists))if(!RegisteredHere(item,target))throw new IOException("Existing test channel belongs to another directory.");
+        foreach(string path in LinkPaths())
+        {NoLinks(path);if(path==LinkPaths()[0]&&File.Exists(path)&&!Same(LinkTarget(path),Path.Combine(target,"ProjectEye.exe")))throw new IOException("Shortcut belongs to another installation.");}
+        if(Directory.Exists(target))
+        {
+            // Enumerate for containment/reparse safety, but do not read or duplicate
+            // user databases/logs: their bytes are outside the replacement set.
+            foreach(string file in Files(target)){}
+            foreach(var entry in owned.Concat(incoming).GroupBy(e=>e.path,StringComparer.OrdinalIgnoreCase).Select(g=>g.First()))
+            {string file=Child(target,entry.path);if(File.Exists(file))using(File.Open(file,FileMode.Open,FileAccess.Read,FileShare.None)){} }
+        }
+        Directory.CreateDirectory(target);
+        if(!File.Exists(stateFile))Write(stateFile,state);
+        string stage=Child(target,state.StageName);
+        if(Directory.Exists(stage))Recycle(stage);
+        Directory.CreateDirectory(stage);
         try
         {
-            Directory.CreateDirectory(target);
-            var incoming=Read<Entry[]>(Child(source,"payload-manifest.json")).Concat(new[]{new Entry {path="payload-manifest.json",sha256=Hash(Child(source,"payload-manifest.json")),bytes=new FileInfo(Child(source,"payload-manifest.json")).Length}}).ToArray();
+            foreach(var entry in incoming)
+            {
+                string file=Child(stage,entry.path);Directory.CreateDirectory(Path.GetDirectoryName(file));
+                File.Copy(Child(source,entry.path),file);if(!Matches(file,entry))throw new IOException("Candidate hash mismatch.");
+                if(failAt=="copy")throw new IOException("Injected preparation copy failure.");
+            }
+            // All candidate files have been staged and verified before replacing any.
             foreach(var entry in incoming)
             {
                 string destination=Child(target,entry.path);
-                if(DataPath(entry.path))throw new IOException("Payload would overwrite user data.");
-                tx.Written.Add(entry);Write(Path.Combine(tx.Backup,"transaction.json"),tx);
-                Directory.CreateDirectory(Path.GetDirectoryName(destination));
-                // Verify a sibling candidate before touching the old file. Rename is on
-                // the same volume; a failed copy leaves the original file intact.
-                string staged=destination+".candidate-"+tx.Id;
-                File.Copy(Child(source,entry.path),staged);
-                if(Hash(staged)!=entry.sha256)throw new IOException("Candidate hash mismatch.");
-                if(File.Exists(destination))Recycle(destination);
-                File.Move(staged,destination);
-                if(Hash(destination)!=entry.sha256)throw new IOException("Installed hash mismatch.");
-                if(failAt=="copy")throw new IOException("Injected copy failure for recovery acceptance.");
+                if(File.Exists(destination))
+                {
+                    var old=owned.FirstOrDefault(e=>e.path.Equals(entry.path,StringComparison.OrdinalIgnoreCase));
+                    if(!Matches(destination,entry)&&(old==null||!Matches(destination,old)))throw new IOException("Payload changed during installation.");
+                    Recycle(destination);
+                }
+                Directory.CreateDirectory(Path.GetDirectoryName(destination));File.Move(Child(stage,entry.path),destination);
+                if(failAt=="replace")throw new IOException("Injected replacement failure.");
+#if MAINTENANCE_TESTS
+                if(failAt=="interrupt")Environment.Exit(87);
+#endif
             }
-            VerifyInstalled(target);
-            var previousManifest=Path.Combine(backupFiles,"payload-manifest.json");
             foreach(string retired in BuildIdentity.RetiredFiles)
             {
-                string oldFile=Child(target,retired);
-                if(File.Exists(oldFile)&&File.Exists(previousManifest)&&Read<Entry[]>(previousManifest).Any(e=>e.path.Equals(retired,StringComparison.OrdinalIgnoreCase)&&Hash(oldFile)==e.sha256))
-                {tx.Retired.Add(tx.Before.Single(e=>e.path.Equals(retired,StringComparison.OrdinalIgnoreCase)));Write(Path.Combine(tx.Backup,"transaction.json"),tx);Recycle(oldFile);}
+                string file=Child(target,retired);var old=owned.FirstOrDefault(e=>e.path.Equals(retired,StringComparison.OrdinalIgnoreCase));
+                if(File.Exists(file)&&old!=null&&Matches(file,old))Recycle(file);
             }
-            Register(target,before);ChangeLinks(target,tx.Links,false,()=>Write(Path.Combine(tx.Backup,"transaction.json"),tx));
-            if(failAt=="registration")throw new IOException("Injected registration failure for recovery acceptance.");
-            tx.State="Committed";Write(Path.Combine(tx.Backup,"transaction.json"),tx);
-            return tx.Backup;
+            VerifyInstalled(target);Register(target,before);
+            var links=LinkPaths().Select(p=>new LinkSnapshot{Path=p}).ToList();ChangeLinks(target,links,false,()=>{});
+            if(failAt=="registration")throw new IOException("Injected registration failure.");
+            if(!deferFinalize)return FinishInstall(target);
+            return "程序文件已安装，正在完成卸载入口登记。";
         }
-        catch(Exception error) {tx.State="Failed";Write(Path.Combine(tx.Backup,"transaction.json"),tx);error.Data["Recovery"]=tx.Backup;Rollback(tx.Backup);throw;}
+        catch(Exception error){throw new IOException("安装未完成。请重新运行同一个安装包修复；配置和统计仍保留。",error);}
+        finally {if(Directory.Exists(stage))Recycle(stage);}
     }
-    internal static void Rollback(string directory)
+    private static string FinishInstall(string root)
     {
-        directory=Normalize(directory);NoLinks(directory);if(!Under(directory,RecoveryRoot))throw new IOException("Not a product recovery directory.");
-        var tx=Read<Transaction>(Path.Combine(directory,"transaction.json"));if(!Same(tx.Backup,directory)||string.IsNullOrEmpty(tx.Id))throw new IOException("Invalid transaction.");SafeRoot(tx.Root);RequireStopped(tx.Root);
-        if(tx.State=="RolledBack")return;
-        if(tx.Registry.Any(r=>!Keys.Contains(r.Name)||r.View!="Registry32"&&r.View!="Registry64"))throw new IOException("Invalid registry rollback scope.");
-        foreach(var link in tx.Links)
-        {
-            if(!LinkPaths().Any(p=>Same(p,link.Path)))throw new IOException("Invalid shortcut rollback scope.");
-            if(link.Existed&&(!Under(link.Backup,directory)||Hash(link.Backup)!=link.BeforeHash))throw new IOException("Shortcut backup changed.");
-        }
-        var allowed=Trusted().Concat(new[]{new Entry{path="ProjectEye.Maintenance.exe",sha256=Hash(Self),bytes=new FileInfo(Self).Length}}).ToList();
-        foreach(var entry in tx.Written.Where(e=>e.path!="payload-manifest.json"))
-            if(!allowed.Any(a=>a.path==entry.path&&a.sha256==entry.sha256&&a.bytes==entry.bytes))throw new IOException("Untrusted rollback payload.");
-        string savedFiles=Path.Combine(directory,"files");NoLinks(savedFiles);
-        if(tx.Before.Any(e=>e.path=="test-package.json"))VerifyExisting(savedFiles,true);
-        if(tx.Retired.Any(e=>!BuildIdentity.RetiredFiles.Contains(e.path,StringComparer.OrdinalIgnoreCase)||!tx.Before.Any(b=>b.path==e.path&&b.sha256==e.sha256)))throw new IOException("Untrusted retired payload.");
-        foreach(var entry in tx.Before)if(Hash(Child(savedFiles,entry.path))!=entry.sha256)throw new IOException("Backup changed.");
-        foreach(var entry in tx.Written)
-        {
-            string path=Child(tx.Root,entry.path);var old=tx.Before.FirstOrDefault(e=>e.path==entry.path);
-            if(File.Exists(path)&&Hash(path)!=entry.sha256&&(old==null||Hash(path)!=old.sha256))throw new IOException("Rollback target changed; preserve it for manual review: "+entry.path);
-        }
-        foreach(var entry in tx.Written){string path=Child(tx.Root,entry.path);if(File.Exists(path)&&Hash(path)==entry.sha256)Recycle(path);}
-        foreach(var entry in tx.Before.Where(e=>!DataPath(e.path)&&(tx.Written.Any(w=>w.path==e.path)||tx.Retired.Any(r=>r.path==e.path))))
-        {string path=Child(tx.Root,entry.path);string copy=Child(Path.Combine(directory,"files"),entry.path);if(Hash(copy)!=entry.sha256)throw new IOException("Backup changed.");if(!File.Exists(path)){Directory.CreateDirectory(Path.GetDirectoryName(path));File.Copy(copy,path);}}
-        RestoreRegistry(tx.Registry,tx.Root);
-        RestoreLinks(tx.Links,tx.Root);
-        tx.State="RolledBack";Write(Path.Combine(directory,"transaction.json"),tx);
+        VerifyInstalled(root);
+        string state=Child(root,StateName);if(File.Exists(state))Recycle(state);
+        int warnings=CleanupHistory(root);
+        return warnings==0?"安装完成。":"安装完成。部分旧恢复记录无法确认归属或清理，已保留，请手动核对。";
     }
     private static void RestoreRegistry(List<RegSnapshot> snapshots,string target)
     {
@@ -315,16 +358,17 @@ internal static class Engine
         if(kind==RegistryValueKind.MultiString)return ((System.Collections.IEnumerable)value).Cast<object>().Select(Convert.ToString).ToArray();
         if(kind==RegistryValueKind.Binary)return ((System.Collections.IEnumerable)value).Cast<object>().Select(Convert.ToByte).ToArray();return Convert.ToString(value);
     }
-    internal static void RefreshRegistration(string root)
-    { VerifyInstalled(root);Register(root,RegistryBefore()); }
+    internal static string RefreshRegistration(string root)
+    { VerifyInstalled(root);Register(root,RegistryBefore());return FinishInstall(root); }
 
     private static bool VerifiedHistory(string folder,string root)
     {
         NoLinks(folder);
+        foreach(string file in Files(folder)){} // Reject reparse points in any descendant before recycling.
         string transaction=Path.Combine(folder,"transaction.json");
         if(File.Exists(transaction))
         {
-            var tx=Read<Transaction>(transaction);
+            var tx=Read<LegacyTransaction>(transaction);
             if(!Same(tx.Root,root)||!Same(tx.Backup,folder)||string.IsNullOrEmpty(tx.Id))return false;
             string files=Path.Combine(folder,"files");
             if(tx.Before.Any(e=>e.path=="test-package.json"))VerifyExisting(files,true);
@@ -357,6 +401,15 @@ internal static class Engine
         }
         return false;
     }
+    internal static int CleanupHistory(string root)
+    {
+        SafeRoot(root);NoLinks(RecoveryRoot);int warnings=0;
+        if(!Directory.Exists(RecoveryRoot))return 0;
+        foreach(string folder in Directory.GetDirectories(RecoveryRoot))
+        {try{if(VerifiedHistory(folder,root))Recycle(folder);else warnings++;}catch(Exception){warnings++;}}
+        if(!Directory.EnumerateFileSystemEntries(RecoveryRoot).Any())Recycle(RecoveryRoot);
+        return warnings;
+    }
     internal static void CheckUninstall(string root)
     {
         VerifyInstalled(root);RequireStopped(root);
@@ -372,13 +425,7 @@ internal static class Engine
     internal static string Uninstall(string root)
     {
         root=Normalize(root);CheckUninstall(root);
-        var history=new List<string>();int uncertain=0;
-        NoLinks(RecoveryRoot);
-        if(Directory.Exists(RecoveryRoot))foreach(string folder in Directory.GetDirectories(RecoveryRoot))
-        {
-            try{if(VerifiedHistory(folder,root))history.Add(folder);}
-            catch(Exception){uncertain++;}
-        }
+        int uncertain=0;
         string stage=Path.Combine(Path.GetTempPath(),"ProjectEye-uninstall-"+Guid.NewGuid().ToString("N"));
         NoLinks(stage);Directory.CreateDirectory(stage);
         var registry=RegistryBefore();var links=BackupLinks(stage);
@@ -411,10 +458,8 @@ internal static class Engine
             else {Recycle(root);if(Directory.Exists(root))throw new IOException("安装目录未能完整移入回收站，请关闭占用它的程序后重试。");}
         }
         catch{RestoreRegistry(registry,root);RestoreLinks(links,root);Recycle(stage);throw;}
-        foreach(string folder in history)
-        {try{Recycle(folder);}catch(Exception){uncertain++;}}
+        uncertain+=CleanupHistory(root);
         Recycle(stage);
-        if(Directory.Exists(RecoveryRoot)&&!Directory.EnumerateFileSystemEntries(RecoveryRoot).Any())Recycle(RecoveryRoot);
         return uncertain==0?"卸载完成，程序、配置、统计、日志及本安装恢复副本已移入系统回收站。":"卸载完成。部分恢复记录无法可靠确认或回收，已保留，请手动核对；程序和本次配置已移入系统回收站。";
     }
 }

@@ -86,7 +86,7 @@ begin
   Tool := ExpandConstant('{tmp}\ProjectEyePayload\ProjectEye.Maintenance.exe');
   Report := ExpandConstant('{tmp}\maintenance-result.json');
   Args := '--install --source "' + ExpandConstant('{tmp}\ProjectEyePayload') +
-    '" --target "' + ExpandConstant('{app}') + '" --quiet --result "' + Report + '"';
+    '" --target "' + ExpandConstant('{app}') + '" --quiet --defer-finalize --result "' + Report + '"';
   if not Exec(Tool, Args, ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, Code) then
     Result := '无法启动应用维护程序，请检查安装包是否完整。'
   else if Code <> 0 then begin
@@ -97,13 +97,20 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
-var Code: Integer;
+var Code: Integer; Report: String; Content: AnsiString; Message: String;
 begin
-  if CurStep = ssPostInstall then
+  if CurStep = ssPostInstall then begin
+    Report := ExpandConstant('{tmp}\maintenance-register.json');
     if not Exec(ExpandConstant('{app}\ProjectEye.Maintenance.exe'),
-      '--register --target "' + ExpandConstant('{app}') + '" --quiet',
+      '--register --target "' + ExpandConstant('{app}') + '" --quiet --result "' + Report + '"',
       ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
-      RaiseException('无法登记应用卸载入口，请保留安装日志并重新安装。');
+      RaiseException('安装未完成，请重新运行同一个安装包修复卸载入口；配置和统计仍保留。');
+    if LoadStringFromFile(Report + '.txt', Content) then begin
+      Message := DecodeUtf8(Content);
+      Log(Message);
+      if Pos('保留', Message) > 0 then MsgBox(Message, mbInformation, MB_OK);
+    end;
+  end;
 end;
 
 var

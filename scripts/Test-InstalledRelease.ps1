@@ -38,6 +38,7 @@ function State {
         legacy1=RegistrySnapshot CurrentUser ($registry+'ProjectEyeEnhanced-beta1')
         legacy2=RegistrySnapshot CurrentUser ($registry+'ProjectEyeEnhanced-beta2')
         actualInstallation=TreeHash $actual
+        currentInstallation=TreeHash (Join-Path $env:LOCALAPPDATA 'Programs/ProjectEyeEnhanced/Test')
         shortcutHashes=@(@([Environment]::GetFolderPath('Programs'),[Environment]::GetFolderPath('Startup'),[Environment]::GetFolderPath('Desktop'))|ForEach-Object{Get-ChildItem -LiteralPath $_ -Filter '*ProjectEye*.lnk' -File|Sort-Object FullName|Get-FileHash|Select-Object Path,Hash})
     }
 }
@@ -59,6 +60,8 @@ $plan=Get-Content (Join-Path $Candidate 'plan.json') -Raw -Encoding utf8|Convert
 & $plan.iscc ("/DPayload=$payload") ("/DCandidate=$run") ("/DReleaseVersion=$($release.version)") /DTestIsolation=1 (Join-Path $repo 'packaging/TestVersion.iss') > (Join-Path $run 'inno-build.log')
 if($LASTEXITCODE-ne0){throw 'Test installer build failed'}
 $release.payload=$payload;$release.setup=Join-Path $run ('ProjectEye-Enhanced-'+$release.version+'-Setup.exe')
+$historyRoot=Join-Path $env:LOCALAPPDATA 'ProjectEyeEnhanced-Recovery'
+$historyBefore=@(Get-ChildItem -LiteralPath $historyRoot -Directory -ErrorAction SilentlyContinue|Select-Object -ExpandProperty Name|Sort-Object)
 $before=State;Json (Join-Path $run 'protected-before.json') $before
 $root=Join-Path $run '中文用户路径/安装目录'
 $base=[Microsoft.Win32.RegistryKey]::OpenBaseKey('CurrentUser','Registry64');$old=$base.OpenSubKey($registry+'ProjectEyeEnhanced-Test')
@@ -127,6 +130,18 @@ try{
     Assert (!(Test-Path (Join-Path $root 'README.md'))-and!(Test-Path (Join-Path $root 'CHANGELOG.md'))-and!(Test-Path (Join-Path $root 'licenses/.gitattributes'))) 'Upgrade retires only trusted obsolete documents'
     Assert (Test-Path (Join-Path $root 'LICENSE')) 'Required copyright notice retained'
     Uninstall 'beta4-upgraded-uninstall'
+    $legacy5=Join-Path $repo 'artifacts/test-release/20261117-150529-094-1.0.0-beta.5/ProjectEye-Enhanced-1.0.0-beta.5'
+    New-Item -ItemType Directory -Path $root -Force|Out-Null
+    Copy-Item -Path (Join-Path $legacy5 '*') -Destination $root -Recurse -Force
+    New-Item -ItemType Directory -Path (Join-Path $root 'Data')|Out-Null
+    [IO.File]::WriteAllText((Join-Path $root 'Data/config.xml'),'<Options>beta5</Options>',$utf8)
+    $hash5=(Get-FileHash (Join-Path $root 'Data/config.xml')).Hash
+    Setup 'beta5-upgrade'
+    Assert ((Get-FileHash (Join-Path $root 'Data/config.xml')).Hash-eq$hash5) 'Beta.5 upgrade retains configuration'
+    Assert (!(Test-Path (Join-Path $root '.projecteye-install-state.json'))) 'Final Inno registration removes interrupted state'
+    Uninstall 'beta5-upgraded-uninstall'
+    $historyAfter=@(Get-ChildItem -LiteralPath $historyRoot -Directory -ErrorAction SilentlyContinue|Select-Object -ExpandProperty Name|Sort-Object)
+    Assert (($historyBefore-join',')-eq($historyAfter-join',')) 'No install upgrade repair or uninstall creates Recovery directories'
     $after=State;Json (Join-Path $run 'protected-after.json') $after
     Assert (($before|ConvertTo-Json -Depth 30 -Compress)-eq($after|ConvertTo-Json -Depth 30 -Compress)) 'System PowerShell files/registrations and actual beta.2 install/links untouched'
     Json (Join-Path $run 'result.json') @{success=$true;candidate=$Candidate;checks=$checks;deepHiBit='NOT TESTED';scope='Identical Inno and maintenance source compiled with isolated product/registry constants; real install/uninstall in Chinese directory, actual user installation preserved'}

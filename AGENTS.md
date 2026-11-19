@@ -27,3 +27,5 @@
 - beta.4 maintenance: [contract](docs/BETA4-MAINTENANCE.md). Uninstall recycles the entire dedicated app directory, including data and unknown files, plus verified same-install recovery history. In-place upgrades preserve data; do not apply obsolete beta.3 retention defaults.
 
 - beta.5 window protection and lean payload: [contract](docs/BETA5-WINDOW-PROTECTION.md). Preserve all topmost windows and all OpenCodex Monitor windows; revalidate before sending minimize. Runtime files use the release profile allowlist; README/CHANGELOG stay outside archives/install payload, required licenses stay inside.
+
+- beta.6 installation supersedes backup/rollback contracts: [no-backup maintenance](docs/BETA6-NO-BACKUPS.md). Never create Recovery directories or copy old payload/data for installation; stage new files, keep only retry metadata until success, and repair with the same package. Legacy history is read-only input to narrowly verified recycling.

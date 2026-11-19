@@ -19,14 +19,16 @@ internal static class Program
             switch(args.FirstOrDefault()??"--uninstall")
             {
                 case "--install":
-                    string backup=Engine.Install(Value(args,"--source"),Value(args,"--target"),Value(args,"--fail-at"));
-                    Engine.Result(result,true,"安装完成。",backup);return 0;
-                case "--rollback":
-                    Engine.Rollback(Value(args,"--transaction"));Engine.Result(result,true,"已恢复到升级前状态。",null);return 0;
+                    string installed=Engine.Install(Value(args,"--source"),Value(args,"--target"),Value(args,"--fail-at"),args.Contains("--defer-finalize"));
+                    Engine.Result(result,true,installed,null);return 0;
+                case "--cleanup-history":
+                    string legacy=Value(args,"--target");Engine.VerifyExisting(legacy);
+                    int warnings=Engine.CleanupHistory(legacy);
+                    Engine.Result(result,true,warnings==0?"已核验并回收属于本安装的旧恢复记录。":"部分旧恢复记录无法确认或回收，已保留。",null);return 0;
                 case "--check":
                     Engine.VerifyInstalled(root);Engine.Result(result,true,"程序文件校验通过。",null);return 0;
                 case "--register":
-                    Engine.RefreshRegistration(Value(args,"--target"));Engine.Result(result,true,"卸载入口已更新。",null);return 0;
+                    string registered=Engine.RefreshRegistration(Value(args,"--target"));Engine.Result(result,true,registered,null);return 0;
                 case "--check-uninstall":
                     Engine.CheckUninstall(Value(args,"--target"));Engine.Result(result,true,"可以卸载。",null);return 0;
                 case "--remove":
@@ -58,7 +60,7 @@ internal static class Program
         if(detail.Contains("changed")||detail.Contains("mismatch")||detail.Contains("Untrusted")){code="E_INTEGRITY";return "程序文件或备份已被修改，校验未通过，已停止操作。请保留现有文件并核对安装包。";}
         if(error is FileNotFoundException||error is DirectoryNotFoundException){code="E_MISSING";return "所选目录缺少必要的产品文件；只有空目录或完整的受支持旧版本可以安装。";}
         if(detail.Contains("another")||detail.Contains("Unknown file")){code="E_CONFLICT";return "所选目录或快捷方式与另一安装冲突，请核对目录，避免覆盖其他文件。";}
-        if(detail.Contains("Injected")){code="E_TEST_FAILURE";return "测试故障已触发，正在恢复升级前的文件。";}
+        if(detail.Contains("Injected")){code="E_TEST_FAILURE";return "测试故障已触发，请重新运行同一个安装包修复。";}
         if(detail.Any(c=>c>0x3000&&c<0xa000))return detail;
         return "操作未完成，已停止后续处理。请检查目录、文件占用及安装包完整性。错误码："+code;
     }
