@@ -108,8 +108,8 @@ internal static class Engine
         if(!recovery)SafeRoot(root);
         var marker=Read<Marker>(Child(root,"test-package.json"));
         if(marker.product!="ProjectEye Enhanced")throw new IOException("Unrecognized installation.");
-        if(marker.version==BuildIdentity.Version){VerifyInstalled(root,!recovery);return;}
-        if(marker.version!="1.0.0-beta.1"&&marker.version!="1.0.0-beta.2"&&marker.version!="1.0.0-beta.3"&&marker.version!="1.0.0-beta.4"&&marker.version!="1.0.0-beta.5"&&marker.version!="1.0.0-beta.6")throw new IOException("Unsupported installed version.");
+        if(marker.version==BuildIdentity.Version&&!BuildIdentity.LegacyManifestHashes.Contains(Hash(Child(root,"payload-manifest.json")))){VerifyInstalled(root,!recovery);return;}
+        if(marker.version!=BuildIdentity.Version&&marker.version!="1.0.0-beta.1"&&marker.version!="1.0.0-beta.2"&&marker.version!="1.0.0-beta.3"&&marker.version!="1.0.0-beta.4"&&marker.version!="1.0.0-beta.5"&&marker.version!="1.0.0-beta.6")throw new IOException("Unsupported installed version.");
         string hash=Hash(Child(root,"payload-manifest.json"));
         if(!BuildIdentity.LegacyManifestHashes.Contains(hash))throw new IOException("Legacy manifest is not a known local release.");
         var manifest=Read<Entry[]>(Child(root,"payload-manifest.json"));

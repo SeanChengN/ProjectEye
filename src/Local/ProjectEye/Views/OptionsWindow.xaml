@@ -725,15 +725,15 @@
                         </TextBlock>
                         <TextBlock TextWrapping="Wrap" Margin="0,10,0,0">
                         <Run Text="{DynamicResource Lang_Help}"/> <Hyperlink  Command="{Binding openurlCommand}"
-                                      CommandParameter="https://littlepanda.gitbook.io/project-eye/">https://littlepanda.gitbook.io/project-eye</Hyperlink>
+                                      CommandParameter="https://github.com/SeanChengN/ProjectEye/blob/master/docs/TEST-VERSION.md">https://github.com/SeanChengN/ProjectEye/blob/master/docs/TEST-VERSION.md</Hyperlink>
                         </TextBlock>
                         <TextBlock TextWrapping="Wrap" Margin="0,10,0,0">
                          <Run Text="{DynamicResource Lang_Source}"/> <Hyperlink Command="{Binding openurlCommand}"
-                                      CommandParameter="https://github.com/Planshit/ProjectEye">https://github.com/Planshit/ProjectEye</Hyperlink>
+                                      CommandParameter="https://github.com/SeanChengN/ProjectEye">https://github.com/SeanChengN/ProjectEye</Hyperlink>
                         </TextBlock>
                         <TextBlock TextWrapping="Wrap" Margin="0,10,0,0">
                          <Run Text="{DynamicResource Lang_Feedback}"/> <Hyperlink  Command="{Binding openurlCommand}"
-                                      CommandParameter="https://github.com/Planshit/ProjectEye/issues">https://github.com/Planshit/ProjectEye/issues</Hyperlink>
+                                      CommandParameter="https://github.com/SeanChengN/ProjectEye/issues">https://github.com/SeanChengN/ProjectEye/issues</Hyperlink>
                         </TextBlock>
                         <!--<TextBlock TextWrapping="Wrap" Margin="0,10,0,0">
                          <Run Text="{DynamicResource Lang_Developers}"/> <Hyperlink  Command="{Binding openurlCommand}"
